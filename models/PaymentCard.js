@@ -28,21 +28,6 @@ const paymentCardSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: ["visa", "mastercard", "amex", "discover", "jcb", "diners", "other"],
-    validate: {
-      validator: function (v) {
-        return [
-          "visa",
-          "mastercard",
-          "amex",
-          "discover",
-          "jcb",
-          "diners",
-          "other",
-        ].includes(v);
-      },
-      message:
-        "Card type must be one of: visa, mastercard, amex, discover, jcb, diners, other",
-    },
   },
   expiry_month: {
     type: Number,
@@ -67,14 +52,6 @@ const paymentCardSchema = new mongoose.Schema({
       message: "Expiry year must be current year or later",
     },
   },
-  is_default: {
-    type: Boolean,
-    default: false,
-  },
-  is_active: {
-    type: Boolean,
-    default: true,
-  },
   created_at: {
     type: Date,
     default: Date.now,
@@ -91,20 +68,32 @@ paymentCardSchema.pre("save", function (next) {
   next();
 });
 
-// Pre-save middleware to ensure only one default card per user
-paymentCardSchema.pre("save", async function (next) {
-  if (this.is_default && this.isNew) {
-    // If this card is being set as default, unset all other default cards for this user
-    await this.constructor.updateMany(
-      { user: this.user, _id: { $ne: this._id } },
-      { is_default: false }
-    );
+// Pre-save middleware to auto-detect card type
+paymentCardSchema.pre("save", function (next) {
+  if (this.isModified("card_number") || this.isNew) {
+    const cleanNumber = this.card_number.replace(/\s/g, "");
+
+    // Card type detection based on first digits
+    if (/^4/.test(cleanNumber)) {
+      this.card_type = "visa";
+    } else if (/^5[1-5]/.test(cleanNumber)) {
+      this.card_type = "mastercard";
+    } else if (/^3[47]/.test(cleanNumber)) {
+      this.card_type = "amex";
+    } else if (/^6(?:011|5)/.test(cleanNumber)) {
+      this.card_type = "discover";
+    } else if (/^35/.test(cleanNumber)) {
+      this.card_type = "jcb";
+    } else if (/^3[0689]/.test(cleanNumber)) {
+      this.card_type = "diners";
+    } else {
+      this.card_type = "other";
+    }
   }
   next();
 });
 
 // Index for better query performance
 paymentCardSchema.index({ user: 1 });
-paymentCardSchema.index({ user: 1, is_default: 1 });
 
 module.exports = mongoose.model("PaymentCard", paymentCardSchema);

@@ -52,10 +52,6 @@ const expiryYearSchema = Joi.number()
     "any.required": "Expiry year is required",
   });
 
-const isDefaultSchema = Joi.boolean().optional().messages({
-  "boolean.base": "is_default must be a boolean",
-});
-
 const mongoIdSchema = Joi.string()
   .pattern(/^[0-9a-fA-F]{24}$/)
   .required()
@@ -71,7 +67,6 @@ const addPaymentCardSchema = Joi.object({
   card_type: cardTypeSchema,
   expiry_month: expiryMonthSchema,
   expiry_year: expiryYearSchema,
-  is_default: isDefaultSchema,
 });
 
 const updatePaymentCardSchema = Joi.object({
@@ -80,7 +75,6 @@ const updatePaymentCardSchema = Joi.object({
   card_type: cardTypeSchema,
   expiry_month: expiryMonthSchema.optional(),
   expiry_year: expiryYearSchema.optional(),
-  is_default: isDefaultSchema,
 }).min(1); // At least one field must be provided for update
 
 const validateCardNumberSchema = Joi.object({

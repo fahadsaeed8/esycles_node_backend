@@ -9,11 +9,6 @@ class PaymentCardService {
    */
   async addPaymentCard(cardData, userId) {
     try {
-      // Check if user already has a default card and this is being set as default
-      if (cardData.is_default) {
-        await PaymentCard.updateMany({ user: userId }, { is_default: false });
-      }
-
       const paymentCard = new PaymentCard({
         ...cardData,
         user: userId,
@@ -36,7 +31,7 @@ class PaymentCardService {
    */
   async getUserPaymentCards(userId) {
     try {
-      return await PaymentCard.find({ user: userId, is_active: true })
+      return await PaymentCard.find({ user: userId })
         .populate("user", "first_name last_name email")
         .sort({ created_at: -1 });
     } catch (error) {
@@ -53,14 +48,6 @@ class PaymentCardService {
    */
   async updatePaymentCard(cardId, userId, updateData) {
     try {
-      // If setting as default, unset other default cards
-      if (updateData.is_default) {
-        await PaymentCard.updateMany(
-          { user: userId, _id: { $ne: cardId } },
-          { is_default: false }
-        );
-      }
-
       const updatedCard = await PaymentCard.findOneAndUpdate(
         { _id: cardId, user: userId },
         updateData,
@@ -78,18 +65,17 @@ class PaymentCardService {
   }
 
   /**
-   * Delete a payment card (soft delete by setting is_active to false)
+   * Delete a payment card (hard delete)
    * @param {string} cardId - Card ID
    * @param {string} userId - User ID
    * @returns {Promise<Object>} Success message
    */
   async deletePaymentCard(cardId, userId) {
     try {
-      const deletedCard = await PaymentCard.findOneAndUpdate(
-        { _id: cardId, user: userId },
-        { is_active: false },
-        { new: true }
-      );
+      const deletedCard = await PaymentCard.findOneAndDelete({
+        _id: cardId,
+        user: userId,
+      });
 
       if (!deletedCard) {
         throw new Error("Payment card not found");
