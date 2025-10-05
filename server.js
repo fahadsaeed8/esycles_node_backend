@@ -9,8 +9,14 @@ const adsRoutes = require("./routes/ads");
 const paymentCardRoutes = require("./routes/paymentCards");
 const path = require("path");
 
-const PORT = 5000;
+const PORT = 5001;
 dotenv.config();
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://bdbb668c9ac4.ngrok-free.app",
+  "*",
+];
 
 const app = express();
 
@@ -18,16 +24,10 @@ const app = express();
 app.use("/public", express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "https://bdbb668c9ac4.ngrok-free.app",
-];
-
 app.use(
   cors({
     origin: allowedOrigins,
-    credentials: true,
+    // credentials: true,
   })
 );
 

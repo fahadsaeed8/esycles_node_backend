@@ -26,7 +26,7 @@ const paymentCardSchema = new mongoose.Schema({
   },
   card_type: {
     type: String,
-    required: true,
+    required: false,
     enum: ["visa", "mastercard", "amex", "discover", "jcb", "diners", "other"],
   },
   expiry_month: {
@@ -80,9 +80,9 @@ paymentCardSchema.pre("save", function (next) {
       this.card_type = "mastercard";
     } else if (/^3[47]/.test(cleanNumber)) {
       this.card_type = "amex";
-    } else if (/^6(?:011|5)/.test(cleanNumber)) {
+    } else if (/^6(?:011|5[0-9]{2})/.test(cleanNumber)) {
       this.card_type = "discover";
-    } else if (/^35/.test(cleanNumber)) {
+    } else if (/^35[2-8]/.test(cleanNumber)) {
       this.card_type = "jcb";
     } else if (/^3[0689]/.test(cleanNumber)) {
       this.card_type = "diners";
