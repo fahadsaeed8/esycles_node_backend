@@ -7,22 +7,11 @@ class PaymentCardService {
       // Get or create Stripe customer
       const stripeCustomerId = await stripeService.getOrCreateCustomer(userId);
 
-      // Create setup intent to save the payment method
-      const setupIntent = await stripeService.createSetupIntent(
-        stripeCustomerId,
-        paymentMethodId
+      // Attach payment method directly to customer
+      const stripePaymentMethod = await stripeService.attachPaymentMethod(
+        paymentMethodId,
+        stripeCustomerId
       );
-
-      if (setupIntent.status !== "succeeded") {
-        throw new Error(
-          `Setup intent failed: ${
-            setupIntent.last_payment_error?.message || "Unknown error"
-          }`
-        );
-      }
-
-      // Get the payment method details
-      const stripePaymentMethod = setupIntent.payment_method;
 
       // Check if this is the first card for the user
       const existingCards = await PaymentCard.find({ user: userId });
@@ -161,42 +150,6 @@ class PaymentCardService {
       return { message: "Payment card deleted successfully" };
     } catch (error) {
       throw new Error(`Failed to delete payment card: ${error.message}`);
-    }
-  }
-
-  async setDefaultPaymentCard(cardId, userId) {
-    try {
-      const paymentCard = await PaymentCard.findOne({
-        _id: cardId,
-        user: userId,
-      });
-
-      if (!paymentCard) {
-        throw new Error("Payment card not found");
-      }
-
-      // Remove default from all other cards
-      await PaymentCard.updateMany(
-        { user: userId, _id: { $ne: cardId } },
-        { is_default: false }
-      );
-
-      // Set this card as default
-      paymentCard.is_default = true;
-      await paymentCard.save();
-
-      // Set as default in Stripe
-      await stripeService.setDefaultPaymentMethod(
-        paymentCard.stripe_customer_id,
-        paymentCard.stripe_payment_method_id
-      );
-
-      return await PaymentCard.findById(cardId).populate(
-        "user",
-        "first_name last_name email"
-      );
-    } catch (error) {
-      throw new Error(`Failed to set default payment card: ${error.message}`);
     }
   }
 }

@@ -1,9 +1,6 @@
 const paymentCardService = require("../services/paymentCardService");
 const stripeService = require("../services/stripeService");
 const PaymentCard = require("../models/PaymentCard");
-const Stripe = require("stripe");
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 /**
  * Add a new payment card
@@ -138,41 +135,10 @@ async function deletePaymentCard(req, res) {
   }
 }
 
-async function createSetupIntent(req, res) {
-  try {
-    const userId = req.user.id;
-
-    // Get or create Stripe customer
-    const stripeCustomerId = await stripeService.getOrCreateCustomer(userId);
-
-    // Create setup intent
-    const setupIntent = await stripe.setupIntents.create({
-      customer: stripeCustomerId,
-      usage: "off_session",
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Setup intent created successfully",
-      data: {
-        client_secret: setupIntent.client_secret,
-        setup_intent_id: setupIntent.id,
-      },
-    });
-  } catch (error) {
-    console.error("Create setup intent error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Failed to create setup intent",
-    });
-  }
-}
-
 module.exports = {
   addPaymentCard,
   getUserPaymentCards,
   getPaymentCardById,
   updatePaymentCard,
   deletePaymentCard,
-  createSetupIntent,
 };

@@ -2,35 +2,17 @@
 
 ## Overview
 
-The payment card API has been updated to integrate with Stripe for secure card management using Setup Intents. This approach ensures PCI compliance by never handling raw card data on the server.
+The payment card API integrates with Stripe for secure card management by directly attaching payment methods to customers. This approach ensures PCI compliance by never handling raw card data on the server.
 
 ## Frontend Integration Flow
 
-1. **Create Setup Intent**: Call `/api/payment-cards/setup-intent` to get a client secret
-2. **Use Stripe Elements**: Collect card data securely on the frontend using Stripe Elements
-3. **Confirm Setup Intent**: Use the client secret to confirm the setup intent with the payment method
-4. **Save Payment Method**: Call `/api/payment-cards` with the payment method ID
+1. **Use Stripe Elements**: Collect card data securely on the frontend using Stripe Elements
+2. **Create Payment Method**: Use Stripe.js to create a payment method with the card data
+3. **Attach Payment Method**: Call `/api/payment-cards` with the payment method ID to attach it to the customer
 
 ## API Endpoints
 
-### 1. Create Setup Intent
-
-**POST** `/api/payment-cards/setup-intent`
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Setup intent created successfully",
-  "data": {
-    "client_secret": "seti_xxx_secret_xxx",
-    "setup_intent_id": "seti_xxx"
-  }
-}
-```
-
-### 2. Add Payment Card
+### 1. Add Payment Card
 
 **POST** `/api/payment-cards`
 
@@ -88,7 +70,7 @@ The payment card API has been updated to integrate with Stripe for secure card m
 }
 ```
 
-### 4. Update Payment Card
+### 3. Update Payment Card
 
 **PUT** `/api/payment-cards/:id`
 
@@ -101,7 +83,7 @@ The payment card API has been updated to integrate with Stripe for secure card m
 }
 ```
 
-### 5. Delete Payment Card
+### 4. Delete Payment Card
 
 **DELETE** `/api/payment-cards/:id`
 
@@ -114,7 +96,7 @@ The payment card API has been updated to integrate with Stripe for secure card m
 }
 ```
 
-### 6. Set Default Payment Card
+### 5. Set Default Payment Card
 
 **PUT** `/api/payment-cards/:id/set-default`
 
@@ -224,6 +206,49 @@ const savePaymentMethod = async (paymentMethodId) => {
 - Default payment method management
 - Stripe payment method attachment/detachment
 - Enhanced error handling
+
+## Frontend Implementation Example
+
+```javascript
+// Initialize Stripe
+const stripe = Stripe("pk_test_your_publishable_key");
+const elements = stripe.elements();
+
+// Create card element
+const cardElement = elements.create("card");
+cardElement.mount("#card-element");
+
+// Handle form submission
+document
+  .getElementById("payment-form")
+  .addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const { error, paymentMethod } = await stripe.createPaymentMethod({
+      type: "card",
+      card: cardElement,
+    });
+
+    if (error) {
+      console.error("Error:", error);
+    } else {
+      // Send payment method ID to your backend
+      const response = await fetch("/api/payment-cards", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + userToken,
+        },
+        body: JSON.stringify({
+          payment_method_id: paymentMethod.id,
+        }),
+      });
+
+      const result = await response.json();
+      console.log("Payment card added:", result);
+    }
+  });
+```
 
 ## Environment Variables Required
 

@@ -43,10 +43,4 @@ router.delete(
   paymentCardController.deletePaymentCard
 );
 
-router.post(
-  "/payment-cards/setup-intent",
-  auth,
-  paymentCardController.createSetupIntent
-);
-
 module.exports = router;
