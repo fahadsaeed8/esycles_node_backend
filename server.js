@@ -15,7 +15,6 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://bdbb668c9ac4.ngrok-free.app",
-  "*",
   "https://user.esycles.com/",
 ];
 
