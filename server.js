@@ -27,7 +27,6 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(
   cors({
     origin: allowedOrigins,
-    credentials: true,
   })
 );
 
