@@ -21,6 +21,13 @@ router.post(
 
 router.get("/payment-cards", auth, paymentCardController.getUserPaymentCards);
 
+router.get(
+  "/payment-cards/:id",
+  auth,
+  validateParams(cardIdParamSchema),
+  paymentCardController.getPaymentCardById
+);
+
 router.put(
   "/payment-cards/:id",
   auth,
@@ -34,6 +41,12 @@ router.delete(
   auth,
   validateParams(cardIdParamSchema),
   paymentCardController.deletePaymentCard
+);
+
+router.post(
+  "/payment-cards/setup-intent",
+  auth,
+  paymentCardController.createSetupIntent
 );
 
 module.exports = router;

@@ -62,19 +62,20 @@ const mongoIdSchema = Joi.string()
 
 // Validation schemas for different endpoints
 const addPaymentCardSchema = Joi.object({
-  card_number: cardNumberSchema,
-  card_holder_name: cardHolderNameSchema,
-  card_type: cardTypeSchema,
-  expiry_month: expiryMonthSchema,
-  expiry_year: expiryYearSchema,
+  payment_method_id: Joi.string()
+    .pattern(/^pm_[a-zA-Z0-9_]+$/)
+    .required()
+    .messages({
+      "string.pattern.base": "Invalid payment method ID format",
+      "any.required": "Payment method ID is required",
+    }),
 });
 
 const updatePaymentCardSchema = Joi.object({
-  card_number: cardNumberSchema.optional(),
   card_holder_name: cardHolderNameSchema.optional(),
-  card_type: cardTypeSchema,
-  expiry_month: expiryMonthSchema.optional(),
-  expiry_year: expiryYearSchema.optional(),
+  email: Joi.string().email().optional().messages({
+    "string.email": "Please provide a valid email address",
+  }),
 }).min(1); // At least one field must be provided for update
 
 const validateCardNumberSchema = Joi.object({
