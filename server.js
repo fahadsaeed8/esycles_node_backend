@@ -9,13 +9,14 @@ const adsRoutes = require("./routes/ads");
 const paymentCardRoutes = require("./routes/paymentCards");
 const path = require("path");
 
-const PORT = 5001;
+const PORT = 5000;
 dotenv.config();
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://bdbb668c9ac4.ngrok-free.app",
   "*",
+  "https://user.esycles.com/",
 ];
 
 const app = express();
@@ -27,7 +28,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(
   cors({
     origin: allowedOrigins,
-    // credentials: true,
+    credentials: true,
   })
 );
 
