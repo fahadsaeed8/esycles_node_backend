@@ -1,16 +1,26 @@
-const mongoose = require('mongoose');
-const express = require('express');
+const mongoose = require("mongoose");
+const express = require("express");
 const router = express.Router();
-const { query, validationResult } = require('express-validator');
-const auth = require('../middleware/auth');
-const upload = require('../middleware/upload');
-const { uploadMultipleProductImages } = require('../middleware/multerConfig');
+const { query, validationResult } = require("express-validator");
+const auth = require("../middleware/auth");
+const upload = require("../middleware/upload");
+const { uploadMultipleProductImages } = require("../middleware/multerConfig");
 const uploadMultipleReturnOrderImages = require("../middleware/returnOrderUpload");
 
-const { Product, Cart,Order, ShippingMethod, Color, Brand, Model, Review, ReturnOrder} = require('../models/Products');
-const fs = require('fs');
-const UtilModel = require('../models/Utils');
-const Notification = UtilModel.Notification
+const {
+  Product,
+  Cart,
+  Order,
+  ShippingMethod,
+  Color,
+  Brand,
+  Model,
+  Review,
+  ReturnOrder,
+} = require("../models/Products");
+const fs = require("fs");
+const UtilModel = require("../models/Utils");
+const Notification = UtilModel.Notification;
 // Import Product model
 const Stripe = require("stripe");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -18,21 +28,26 @@ const multer = require("multer");
 const csv = require("csv-parser");
 const { Readable } = require("stream");
 const OpenAI = require("openai");
+const PaymentCard = require("../models/PaymentCard");
 
 const uploadCSV = multer({ storage: multer.memoryStorage() });
 
 require("dotenv").config();
 
-
-
 // @route   GET /api/products
 // @desc    Get all products
 // @access  Public
 router.get(
-  '/landing_products',
+  "/landing_products",
   [
-    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-    query('limit').optional().isInt({ min: 1 }).withMessage('Limit must be a positive integer'),
+    query("page")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("Page must be a positive integer"),
+    query("limit")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("Limit must be a positive integer"),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -53,10 +68,10 @@ router.get(
 
       // Convert image paths to absolute URLs
       const baseUrl = `${req.protocol}://${req.get("host")}`;
-      products = products.map(product => {
+      products = products.map((product) => {
         const prod = product.toObject();
-        prod.images = prod.images.map(img => {
-          const imagePath = img.startsWith('/') ? img : `/${img}`;
+        prod.images = prod.images.map((img) => {
+          const imagePath = img.startsWith("/") ? img : `/${img}`;
           return `${baseUrl}${imagePath}`;
         });
         return prod;
@@ -73,11 +88,10 @@ router.get(
       });
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server Error');
+      res.status(500).send("Server Error");
     }
   }
 );
-
 
 // ✅ All Products API
 router.get(
@@ -160,7 +174,7 @@ router.get(
 
       // ✅ Fetch products (latest first)
       let products = await Product.find(filters)
-        .sort({ createdAt: -1 })   // 👈 LATEST FIRST
+        .sort({ createdAt: -1 }) // 👈 LATEST FIRST
         .skip(skip)
         .limit(limit)
         .populate("model brand color seller");
@@ -220,9 +234,8 @@ router.get(
   }
 );
 
-
 // Single product API
-router.get('/product/:id', auth, async (req, res) => {
+router.get("/product/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { product_quantity, cost } = req.query;
@@ -237,9 +250,10 @@ router.get('/product/:id', auth, async (req, res) => {
           { path: "address.city" },
           { path: "address.state" },
           { path: "address.country" },
-          { path: "language" }
-        ]
-      }).populate("shipping");
+          { path: "language" },
+        ],
+      })
+      .populate("shipping");
 
     if (!product) {
       return res.status(404).json({
@@ -248,12 +262,12 @@ router.get('/product/:id', auth, async (req, res) => {
       });
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
     const prod = product.toObject();
 
     // ✅ FIXED: Convert images to absolute URLs with proper slash handling
-    prod.images = prod.images.map(img => {
-      const imagePath = img.startsWith('/') ? img : `/${img}`;
+    prod.images = prod.images.map((img) => {
+      const imagePath = img.startsWith("/") ? img : `/${img}`;
       return `${baseUrl}${imagePath}`;
     });
 
@@ -295,7 +309,10 @@ router.get('/product/:id', auth, async (req, res) => {
     // ✅ Check if user has already reviewed this product
     let isReview = false;
     if (userId) {
-      const existingReview = await Review.findOne({ product: id, user: userId });
+      const existingReview = await Review.findOne({
+        product: id,
+        user: userId,
+      });
       if (existingReview) {
         isReview = true;
       }
@@ -306,126 +323,135 @@ router.get('/product/:id', auth, async (req, res) => {
       data: {
         ...prod,
         shipping_methods: shippingMethods,
-        is_review: isReview   // ✅ new flag
+        is_review: isReview, // ✅ new flag
       },
     });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).send("Server Error");
   }
 });
 
-
 /// Add to Cart API (using authenticated user)
-router.post('/cart/add', auth, async (req, res) => {
-    try {
-      // Get user ID from the authenticated request
-      const userId = req.user._id; // Assuming your auth middleware adds user to req
-      const { productId, quantity } = req.body;
-  
-      // Validate input (no need to check userId now)
-      if (!productId || !quantity) {
-        return res.status(400).json({ message: 'Missing required fields: productId and quantity' });
-      }
-  
-      // Get product to check price and stock
-      const product = await Product.findById(productId);
-      if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
-      }
-  
-      // Check stock availability
-      if (product.stock < quantity) {
-        return res.status(400).json({ message: 'Insufficient stock' });
-      }
-  
-      // Find existing cart or create new one
-      let cart = await Cart.findOne({ user: userId, status: 'active' });
-  
-      if (!cart) {
-        cart = new Cart({
-          user: userId,
-          items: [],
-          total_price: 0,
-          status: 'active'
-        });
-      }
-  
-      // Check if product already exists in cart
-      const existingItemIndex = cart.items.findIndex(item => 
-        item.product.toString() === productId
-      );
-  
-      // Apply discount if available
-      let finalPrice = product.price;
-      if (product.discount_price_tiers && product.discount_price_tiers.length > 0) {
-        // Calculate total quantity (existing + new)
-        const totalQuantity = existingItemIndex >= 0 
+router.post("/cart/add", auth, async (req, res) => {
+  try {
+    // Get user ID from the authenticated request
+    const userId = req.user._id; // Assuming your auth middleware adds user to req
+    const { productId, quantity } = req.body;
+
+    // Validate input (no need to check userId now)
+    if (!productId || !quantity) {
+      return res
+        .status(400)
+        .json({ message: "Missing required fields: productId and quantity" });
+    }
+
+    // Get product to check price and stock
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Check stock availability
+    if (product.stock < quantity) {
+      return res.status(400).json({ message: "Insufficient stock" });
+    }
+
+    // Find existing cart or create new one
+    let cart = await Cart.findOne({ user: userId, status: "active" });
+
+    if (!cart) {
+      cart = new Cart({
+        user: userId,
+        items: [],
+        total_price: 0,
+        status: "active",
+      });
+    }
+
+    // Check if product already exists in cart
+    const existingItemIndex = cart.items.findIndex(
+      (item) => item.product.toString() === productId
+    );
+
+    // Apply discount if available
+    let finalPrice = product.price;
+    if (
+      product.discount_price_tiers &&
+      product.discount_price_tiers.length > 0
+    ) {
+      // Calculate total quantity (existing + new)
+      const totalQuantity =
+        existingItemIndex >= 0
           ? cart.items[existingItemIndex].quantity + quantity
           : quantity;
-  
-        // Find the best discount tier
-        const discountTier = product.discount_price_tiers.find(tier => 
-          totalQuantity >= tier.min_qty && (tier.max_qty ? totalQuantity <= tier.max_qty : true)
-        );
-        if (discountTier) {
-          finalPrice = discountTier.price;
-        }
-      }
-  
-      if (existingItemIndex >= 0) {
-        // Update existing item
-        cart.items[existingItemIndex].quantity += quantity;
-        cart.items[existingItemIndex].price = finalPrice;
-      } else {
-        // Add new item
-        cart.items.push({
-          product: productId,
-          quantity,
-          price: finalPrice
-        });
-      }
-  
-      // Recalculate total price
-      cart.total_price = cart.items.reduce((total, item) => {
-        return total + (item.price * item.quantity);
-      }, 0);
-  
-      await cart.save();
-  
-      res.status(200).json({
-        message: 'Product added to cart successfully',
-        cart
-      });
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
 
-  // Remove Item from Cart API
-router.post('/cart/remove-item', auth, async (req, res) => {
+      // Find the best discount tier
+      const discountTier = product.discount_price_tiers.find(
+        (tier) =>
+          totalQuantity >= tier.min_qty &&
+          (tier.max_qty ? totalQuantity <= tier.max_qty : true)
+      );
+      if (discountTier) {
+        finalPrice = discountTier.price;
+      }
+    }
+
+    if (existingItemIndex >= 0) {
+      // Update existing item
+      cart.items[existingItemIndex].quantity += quantity;
+      cart.items[existingItemIndex].price = finalPrice;
+    } else {
+      // Add new item
+      cart.items.push({
+        product: productId,
+        quantity,
+        price: finalPrice,
+      });
+    }
+
+    // Recalculate total price
+    cart.total_price = cart.items.reduce((total, item) => {
+      return total + item.price * item.quantity;
+    }, 0);
+
+    await cart.save();
+
+    res.status(200).json({
+      message: "Product added to cart successfully",
+      cart,
+    });
+  } catch (error) {
+    console.error("Error adding to cart:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Remove Item from Cart API
+router.post("/cart/remove-item", auth, async (req, res) => {
   try {
     const userId = req.user._id; // from auth middleware
     const { itemId } = req.body;
 
     if (!itemId) {
-      return res.status(400).json({ message: 'Missing required field: itemId' });
+      return res
+        .status(400)
+        .json({ message: "Missing required field: itemId" });
     }
 
     // Find active cart
-    const cart = await Cart.findOne({ user: userId, status: 'active' });
+    const cart = await Cart.findOne({ user: userId, status: "active" });
     if (!cart) {
-      return res.status(404).json({ message: 'Cart not found' });
+      return res.status(404).json({ message: "Cart not found" });
     }
 
     // Find the item by its _id
-    const itemIndex = cart.items.findIndex(item => 
-      item._id.toString() === itemId
+    const itemIndex = cart.items.findIndex(
+      (item) => item._id.toString() === itemId
     );
 
     if (itemIndex === -1) {
-      return res.status(404).json({ message: 'Item not found in cart' });
+      return res.status(404).json({ message: "Item not found in cart" });
     }
 
     // Remove the item
@@ -433,72 +459,70 @@ router.post('/cart/remove-item', auth, async (req, res) => {
 
     // Recalculate total price
     cart.total_price = cart.items.reduce((total, item) => {
-      return total + (item.price * item.quantity);
+      return total + item.price * item.quantity;
     }, 0);
 
     await cart.save();
 
     res.status(200).json({
-      message: 'Item removed from cart successfully',
-      cart
+      message: "Item removed from cart successfully",
+      cart,
     });
-
   } catch (error) {
-    console.error('Error removing item from cart:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("Error removing item from cart:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
-router.get('/cart/my-cart', auth, async (req, res) => {
+router.get("/cart/my-cart", auth, async (req, res) => {
   try {
     const userId = req.user._id;
 
-    let cart = await Cart.findOne({ user: userId, status: 'active' })
-      .populate({
-        path: 'items.product',
-        select: 'title price images brand model color',
-        populate: [
-          { path: 'brand', select: 'name' },
-          { path: 'model', select: 'name' },
-          { path: 'color', select: 'name hex' }
-        ]
-      });
+    let cart = await Cart.findOne({ user: userId, status: "active" }).populate({
+      path: "items.product",
+      select: "title price images brand model color",
+      populate: [
+        { path: "brand", select: "name" },
+        { path: "model", select: "name" },
+        { path: "color", select: "name hex" },
+      ],
+    });
 
     if (!cart) {
       return res.status(200).json({
-        message: 'No active cart found',
-        cart: { items: [], total_price: 0 }
+        message: "No active cart found",
+        cart: { items: [], total_price: 0 },
       });
     }
 
     // Construct base URL
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     // Convert to plain JS object so we can modify
     cart = cart.toObject();
 
     // Add `id` field to each item
-    cart.items = cart.items.map(item => {
+    cart.items = cart.items.map((item) => {
       const newItem = {
         _id: item._id, // include item id
-        ...item
+        ...item,
       };
 
       if (item.product && item.product.images) {
-        newItem.product.images = item.product.images.map(img => {
+        newItem.product.images = item.product.images.map((img) => {
           // If image already has http(s) protocol, return as is
-          if (img.startsWith('http')) {
+          if (img.startsWith("http")) {
             return img;
           }
-          
+
           // Replace backslashes with forward slashes and ensure proper path
-          const normalizedPath = img.replace(/\\/g, '/');
-          
+          const normalizedPath = img.replace(/\\/g, "/");
+
           // Remove any leading slash to avoid double slashes
-          const cleanPath = normalizedPath.startsWith('/') 
-            ? normalizedPath.substring(1) 
+          const cleanPath = normalizedPath.startsWith("/")
+            ? normalizedPath.substring(1)
             : normalizedPath;
-            
+
           return `${baseUrl}/${cleanPath}`;
         });
       }
@@ -507,18 +531,17 @@ router.get('/cart/my-cart', auth, async (req, res) => {
     });
 
     res.status(200).json({
-      message: 'Cart retrieved successfully',
-      cart
+      message: "Cart retrieved successfully",
+      cart,
     });
   } catch (error) {
-    console.error('Error getting cart:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("Error getting cart:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
-  
 // POST /cart/filter_cart
-router.post('/cart/filter_cart', auth, async (req, res) => {
+router.post("/cart/filter_cart", auth, async (req, res) => {
   try {
     const userId = req.user._id;
     const { itemIds } = req.body;
@@ -528,20 +551,22 @@ router.post('/cart/filter_cart', auth, async (req, res) => {
     }
 
     // Find the active cart and populate product details
-    const cart = await Cart.findOne({ user: userId, status: 'active' })
-      .populate({
-        path: "items.product",
-        populate: {
-          path: "seller",
-          select: "-password -is_active -is_staff -created_at -updated_at",
-          populate: [
-            { path: "address.city" },
-            { path: "address.state" },
-            { path: "address.country" },
-            { path: "language" }
-          ]
-        }
-      });
+    const cart = await Cart.findOne({
+      user: userId,
+      status: "active",
+    }).populate({
+      path: "items.product",
+      populate: {
+        path: "seller",
+        select: "-password -is_active -is_staff -created_at -updated_at",
+        populate: [
+          { path: "address.city" },
+          { path: "address.state" },
+          { path: "address.country" },
+          { path: "language" },
+        ],
+      },
+    });
 
     if (!cart) {
       return res.status(404).json({ message: "No active cart found" });
@@ -551,70 +576,74 @@ router.post('/cart/filter_cart', auth, async (req, res) => {
     const cartObj = cart.toObject();
 
     // Filter items that match provided IDs
-    const filteredItems = cartObj.items.filter(item =>
+    const filteredItems = cartObj.items.filter((item) =>
       itemIds.includes(item._id.toString())
     );
 
     if (filteredItems.length === 0) {
-      return res.status(404).json({ message: "No matching items found in cart" });
+      return res
+        .status(404)
+        .json({ message: "No matching items found in cart" });
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     // Calculate total_price and total_old_price
     let total_price = 0;
     let total_old_price = 0;
 
     // Process items and fetch shipping methods for each product
-    const items = await Promise.all(filteredItems.map(async (i) => {
-      const prod = i.product;
+    const items = await Promise.all(
+      filteredItems.map(async (i) => {
+        const prod = i.product;
 
-      if (prod && prod.images) {
-        prod.images = prod.images.map(img => {
-          // If image already has http(s) protocol, return as is
-          if (img.startsWith('http')) {
-            return img;
-          }
-          
-          // Replace backslashes with forward slashes and ensure proper path
-          const normalizedPath = img.replace(/\\/g, '/');
-          
-          // Remove any leading slash to avoid double slashes
-          const cleanPath = normalizedPath.startsWith('/') 
-            ? normalizedPath.substring(1) 
-            : normalizedPath;
-            
-          return `${baseUrl}/${cleanPath}`;
-        });
-      }
+        if (prod && prod.images) {
+          prod.images = prod.images.map((img) => {
+            // If image already has http(s) protocol, return as is
+            if (img.startsWith("http")) {
+              return img;
+            }
 
-      // ✅ Fetch seller's shipping methods
-      let shippingMethods = [];
-      if (prod.seller && prod.seller._id) {
-        shippingMethods = await ShippingMethod.find({ 
-          user: prod.seller._id 
-        }).select('-user -createdAt -updatedAt -__v');
-      }
+            // Replace backslashes with forward slashes and ensure proper path
+            const normalizedPath = img.replace(/\\/g, "/");
 
-      // Calculate prices
-      const itemTotalPrice = i.price * i.quantity;
-      const itemTotalOldPrice = (prod.old_price || i.price) * i.quantity;
-      
-      total_price += itemTotalPrice;
-      total_old_price += itemTotalOldPrice;
+            // Remove any leading slash to avoid double slashes
+            const cleanPath = normalizedPath.startsWith("/")
+              ? normalizedPath.substring(1)
+              : normalizedPath;
 
-      return {
-        id: i._id,
-        product: {
-          ...prod,
-          shipping_methods: shippingMethods
-        },
-        quantity: i.quantity,
-        price: i.price,
-        item_total_price: itemTotalPrice,
-        item_total_old_price: itemTotalOldPrice
-      };
-    }));
+            return `${baseUrl}/${cleanPath}`;
+          });
+        }
+
+        // ✅ Fetch seller's shipping methods
+        let shippingMethods = [];
+        if (prod.seller && prod.seller._id) {
+          shippingMethods = await ShippingMethod.find({
+            user: prod.seller._id,
+          }).select("-user -createdAt -updatedAt -__v");
+        }
+
+        // Calculate prices
+        const itemTotalPrice = i.price * i.quantity;
+        const itemTotalOldPrice = (prod.old_price || i.price) * i.quantity;
+
+        total_price += itemTotalPrice;
+        total_old_price += itemTotalOldPrice;
+
+        return {
+          id: i._id,
+          product: {
+            ...prod,
+            shipping_methods: shippingMethods,
+          },
+          quantity: i.quantity,
+          price: i.price,
+          item_total_price: itemTotalPrice,
+          item_total_old_price: itemTotalOldPrice,
+        };
+      })
+    );
 
     const discount = total_old_price - total_price;
 
@@ -624,45 +653,57 @@ router.post('/cart/filter_cart', auth, async (req, res) => {
       total_old_price,
       discount,
       items,
-      item_count: items.length
+      item_count: items.length,
     });
-
   } catch (error) {
     console.error("Error in filter_cart:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
 
-
 /// Create order from selected cart items or direct product purchase
-router.post('/orders/create', auth, async (req, res) => {
+router.post("/orders/create", auth, async (req, res) => {
   try {
-    const { selectedCartItemIds, productId, quantity, paymentMethod, shippingAddress, shipping_method, order_source } = req.body;
+    const {
+      selectedCartItemIds,
+      productId,
+      quantity,
+      paymentMethod,
+      shippingAddress,
+      shipping_method,
+      order_source,
+    } = req.body;
     const userId = req.user._id;
 
     // Validate required fields
     if (!shippingAddress) {
-      return res.status(400).json({ message: 'Missing required field: shippingAddress' });
+      return res
+        .status(400)
+        .json({ message: "Missing required field: shippingAddress" });
     }
 
     if (!shipping_method) {
-      return res.status(400).json({ message: 'Missing required field: shipping_method' });
+      return res
+        .status(400)
+        .json({ message: "Missing required field: shipping_method" });
     }
 
     // Validate shipping_method is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(shipping_method)) {
-      return res.status(400).json({ 
-        message: 'Invalid shipping_method: must be a valid ObjectId' 
+      return res.status(400).json({
+        message: "Invalid shipping_method: must be a valid ObjectId",
       });
     }
 
     // Determine order source and validate accordingly
-    const isShopNow = order_source === 'shop_now' || productId;
-    const isCartSelection = order_source === 'cart_selection' || selectedCartItemIds;
-    
+    const isShopNow = order_source === "shop_now" || productId;
+    const isCartSelection =
+      order_source === "cart_selection" || selectedCartItemIds;
+
     if (!isShopNow && !isCartSelection) {
-      return res.status(400).json({ 
-        message: 'Missing order information: Provide either productId (for direct purchase) or selectedCartItemIds (for cart selection)' 
+      return res.status(400).json({
+        message:
+          "Missing order information: Provide either productId (for direct purchase) or selectedCartItemIds (for cart selection)",
       });
     }
 
@@ -673,74 +714,87 @@ router.post('/orders/create', auth, async (req, res) => {
     if (isShopNow) {
       // Handle direct purchase (shop now) flow
       if (!productId) {
-        return res.status(400).json({ message: 'Missing required field: productId' });
+        return res
+          .status(400)
+          .json({ message: "Missing required field: productId" });
       }
-      
+
       if (!quantity || quantity < 1) {
-        return res.status(400).json({ message: 'Missing or invalid field: quantity' });
+        return res
+          .status(400)
+          .json({ message: "Missing or invalid field: quantity" });
       }
 
       // Get product details
       const product = await Product.findById(productId);
       if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
+        return res.status(404).json({ message: "Product not found" });
       }
 
       // Check stock
       if (product.stock < quantity) {
         return res.status(400).json({
           message: `Insufficient stock for product: ${product.title}`,
-          productId: product._id
+          productId: product._id,
         });
       }
 
       // Prepare order item
-      selectedItems = [{
-        product: product,
-        quantity: quantity,
-        price: product.price
-      }];
+      selectedItems = [
+        {
+          product: product,
+          quantity: quantity,
+          price: product.price,
+        },
+      ];
 
       totalPrice = product.price * quantity;
     } else {
       // Handle cart selection flow
-      if (!selectedCartItemIds || !Array.isArray(selectedCartItemIds) || selectedCartItemIds.length === 0) {
-        return res.status(400).json({ 
-          message: 'Missing or invalid field: selectedCartItemIds (must be a non-empty array)' 
+      if (
+        !selectedCartItemIds ||
+        !Array.isArray(selectedCartItemIds) ||
+        selectedCartItemIds.length === 0
+      ) {
+        return res.status(400).json({
+          message:
+            "Missing or invalid field: selectedCartItemIds (must be a non-empty array)",
         });
       }
 
       // Find user's active cart
       cart = await Cart.findOne({
         user: userId,
-        status: 'active'
-      }).populate('items.product');
+        status: "active",
+      }).populate("items.product");
 
       if (!cart) {
         return res.status(404).json({
-          message: 'No active cart found'
+          message: "No active cart found",
         });
       }
 
       // Filter cart items to only include selected items
-      selectedItems = cart.items.filter(item => 
+      selectedItems = cart.items.filter((item) =>
         selectedCartItemIds.includes(item._id.toString())
       );
 
       if (selectedItems.length === 0) {
         return res.status(404).json({
-          message: 'No matching items found in your cart'
+          message: "No matching items found in your cart",
         });
       }
 
       // Check if all selected items were found
       if (selectedItems.length !== selectedCartItemIds.length) {
-        const foundIds = selectedItems.map(item => item._id.toString());
-        const missingIds = selectedCartItemIds.filter(id => !foundIds.includes(id));
-        
+        const foundIds = selectedItems.map((item) => item._id.toString());
+        const missingIds = selectedCartItemIds.filter(
+          (id) => !foundIds.includes(id)
+        );
+
         return res.status(404).json({
-          message: 'Some selected items were not found in your cart',
-          missingItemIds: missingIds
+          message: "Some selected items were not found in your cart",
+          missingItemIds: missingIds,
         });
       }
 
@@ -749,40 +803,43 @@ router.post('/orders/create', auth, async (req, res) => {
         if (item.product.stock < item.quantity) {
           return res.status(400).json({
             message: `Insufficient stock for product: ${item.product.title}`,
-            productId: item.product._id
+            productId: item.product._id,
           });
         }
       }
 
       // Calculate total price for cart items
-      totalPrice = selectedItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+      totalPrice = selectedItems.reduce(
+        (total, item) => total + item.price * item.quantity,
+        0
+      );
     }
 
     // Prepare order items
-    const orderItems = selectedItems.map(item => ({
+    const orderItems = selectedItems.map((item) => ({
       product: item.product._id,
       quantity: item.quantity,
-      price: item.price
+      price: item.price,
     }));
 
     // Create order - use valid enum values for order_source
     const order = new Order({
       user: userId,
       items: orderItems,
-      products: orderItems.map(i => i.product),
+      products: orderItems.map((i) => i.product),
       order_source: isShopNow ? "shop_now" : "cart",
       total_price: totalPrice,
-      payment_method: paymentMethod || 'cod',
+      payment_method: paymentMethod || "cod",
       shipping_address: shippingAddress,
       shipping_method: shipping_method, // This should now be a valid ObjectId
-      note: req.body.note || null 
+      note: req.body.note || null,
     });
 
     // Save order and update stock
     const operations = [order.save()];
-    
+
     // Update product stock
-    orderItems.forEach(item => {
+    orderItems.forEach((item) => {
       operations.push(
         Product.updateOne(
           { _id: item.product },
@@ -796,9 +853,9 @@ router.post('/orders/create', auth, async (req, res) => {
       operations.push(
         Cart.updateOne(
           { _id: cart._id },
-          { 
+          {
             $pull: { items: { _id: { $in: selectedCartItemIds } } },
-            $set: { total_price: cart.total_price - totalPrice }
+            $set: { total_price: cart.total_price - totalPrice },
           }
         )
       );
@@ -810,15 +867,17 @@ router.post('/orders/create', auth, async (req, res) => {
     await Notification.create({
       user: userId,
       title: "Order Submitted",
-      description: `Your order #${order._id} has been placed successfully.`
+      description: `Your order #${order._id} has been placed successfully.`,
     });
 
-    const vendorIds = [...new Set(selectedItems.map(i => i.product.seller.toString()))];
+    const vendorIds = [
+      ...new Set(selectedItems.map((i) => i.product.seller.toString())),
+    ];
     for (const vendorId of vendorIds) {
       await Notification.create({
         user: vendorId,
         title: "New Order Received",
-        description: `You have received a new order #${order._id}.`
+        description: `You have received a new order #${order._id}.`,
       });
     }
 
@@ -832,130 +891,133 @@ router.post('/orders/create', auth, async (req, res) => {
 
     // Populate for response
     const populatedOrder = await Order.findById(order._id)
-      .populate('items.product', 'title price images')
-      .populate('user', 'name email')
-      .populate('shipping_method', 'name price'); // Populate shipping method if needed
+      .populate("items.product", "title price images")
+      .populate("user", "name email")
+      .populate("shipping_method", "name price"); // Populate shipping method if needed
 
     res.status(201).json({
-      message: 'Order created successfully',
-      order: populatedOrder
+      message: "Order created successfully",
+      order: populatedOrder,
     });
-
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error("Error creating order:", error);
     res.status(500).json({
-      message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Internal server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 });
 // My order api
-router.get('/orders/my-orders', auth, async (req, res) => {
+router.get("/orders/my-orders", auth, async (req, res) => {
   try {
     const userId = req.user._id;
 
     const orders = await Order.find({ user: userId })
       .populate({
-        path: 'items.product',
-        select: 'title price images brand model color',
+        path: "items.product",
+        select: "title price images brand model color",
         populate: [
-          { path: 'brand', select: 'name' },
-          { path: 'model', select: 'name' },
-          { path: 'color', select: 'name hex' }
-        ]
+          { path: "brand", select: "name" },
+          { path: "model", select: "name" },
+          { path: "color", select: "name hex" },
+        ],
       })
-      .populate('shipping_address') // Populate shipping address
-      .populate('shipping_method') // Populate shipping method
+      .populate("shipping_address") // Populate shipping address
+      .populate("shipping_method") // Populate shipping method
       .sort({ createdAt: -1 }); // Newest orders first
 
     if (!orders || orders.length === 0) {
       return res.status(200).json({
-        message: 'No orders found',
-        orders: []
+        message: "No orders found",
+        orders: [],
       });
     }
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-    const processedOrders = orders.map(order => {
+    const processedOrders = orders.map((order) => {
       const orderObj = order.toObject();
-      
+
       // Add id field and preserve invoice_number
       orderObj.id = orderObj._id;
       delete orderObj._id;
-      
+
       // Keep the auto-generated invoice_number as is
       // It will already be present in orderObj.invoice_number
-      
+
       if (orderObj.shipping_address && orderObj.shipping_address._id) {
         orderObj.shipping_address.id = orderObj.shipping_address._id;
         delete orderObj.shipping_address._id;
       }
-      
+
       if (orderObj.shipping_method && orderObj.shipping_method._id) {
         orderObj.shipping_method.id = orderObj.shipping_method._id;
         delete orderObj.shipping_method._id;
       }
-      
+
       if (orderObj.items && orderObj.items.length > 0) {
         orderObj.items = orderObj.items.map((item, index) => {
           item.id = `${orderObj.id}-item-${index}`;
-          
+
           if (item.product && item.product.images) {
-            item.product.images = item.product.images.map(img => {
-              if (img.startsWith('http')) {
+            item.product.images = item.product.images.map((img) => {
+              if (img.startsWith("http")) {
                 return img;
               }
-              
-              const normalizedPath = img.replace(/\\/g, '/');
-              
-              const cleanPath = normalizedPath.startsWith('/') 
-                ? normalizedPath.substring(1) 
+
+              const normalizedPath = img.replace(/\\/g, "/");
+
+              const cleanPath = normalizedPath.startsWith("/")
+                ? normalizedPath.substring(1)
                 : normalizedPath;
-                
+
               return `${baseUrl}/${cleanPath}`;
             });
           }
-          
+
           if (item.product && item.product._id) {
             item.product.id = item.product._id;
             delete item.product._id;
           }
-          
+
           return item;
         });
       }
-      
+
       return orderObj;
     });
 
     res.status(200).json({
-      message: 'Orders retrieved successfully',
+      message: "Orders retrieved successfully",
       count: processedOrders.length,
-      orders: processedOrders
+      orders: processedOrders,
     });
   } catch (error) {
-    console.error('Error getting orders:', error);
-    res.status(500).json({ 
-      message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    console.error("Error getting orders:", error);
+    res.status(500).json({
+      message: "Internal server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 });
 
 router.post("/create-payment-intent", auth, async (req, res) => {
   try {
+    const userId = req.user._id;
     const { amount, currency } = req.body;
+
+    const paymentCard = await PaymentCard.findOne({ user: userId });
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amount * 100, // amount in cents
       currency: currency || "usd",
-      automatic_payment_methods: { 
-        enabled: true, 
-        allow_redirects: "never" 
+      customer: paymentCard.stripe_customer_id,
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: "never",
       },
     });
-    
+
     res.json({
       clientSecret: paymentIntent.client_secret,
     });
@@ -977,7 +1039,7 @@ router.post("/check-intent", auth, async (req, res) => {
       payment_method: payment_method,
       return_url: "https://esycles.vercel.app/",
     });
-    
+
     if (intent.status === "succeeded") {
       return res.json({ status: "accepted" });
     } else {
@@ -987,47 +1049,53 @@ router.post("/check-intent", auth, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-  
+
 // ✅ POST or Update Review (with images)
-router.post("/reviews/:productId", auth, upload.array("images", 5), async (req, res) => {
-  try {
-    const { rating, review, title } = req.body;   // ✅ added title
-    const { productId } = req.params;
-    const userId = req.user._id;
+router.post(
+  "/reviews/:productId",
+  auth,
+  upload.array("images", 5),
+  async (req, res) => {
+    try {
+      const { rating, review, title } = req.body; // ✅ added title
+      const { productId } = req.params;
+      const userId = req.user._id;
 
-    const imagePaths = req.files ? req.files.map(file => `/uploads/reviews/${file.filename}`) : [];
+      const imagePaths = req.files
+        ? req.files.map((file) => `/uploads/reviews/${file.filename}`)
+        : [];
 
-    // ✅ Create or update review
-    const newReview = await Review.findOneAndUpdate(
-      { product: productId, user: userId },
-      { rating, review, title, images: imagePaths },   // ✅ include title
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+      // ✅ Create or update review
+      const newReview = await Review.findOneAndUpdate(
+        { product: productId, user: userId },
+        { rating, review, title, images: imagePaths }, // ✅ include title
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      );
 
-    const stats = await Review.aggregate([
-      { $match: { product: new mongoose.Types.ObjectId(productId) } },
-      {
-        $group: {
-          _id: "$product",
-          avgRating: { $avg: "$rating" },
-          count: { $sum: 1 }
-        }
+      const stats = await Review.aggregate([
+        { $match: { product: new mongoose.Types.ObjectId(productId) } },
+        {
+          $group: {
+            _id: "$product",
+            avgRating: { $avg: "$rating" },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      if (stats.length > 0) {
+        await Product.findByIdAndUpdate(productId, {
+          rating: stats[0].avgRating,
+          reviews_count: stats[0].count,
+        });
       }
-    ]);
 
-    if (stats.length > 0) {
-      await Product.findByIdAndUpdate(productId, {
-        rating: stats[0].avgRating,
-        reviews_count: stats[0].count
-      });
+      res.status(201).json({ success: true, review: newReview });
+    } catch (err) {
+      res.status(400).json({ success: false, error: err.message });
     }
-
-    res.status(201).json({ success: true, review: newReview });
-  } catch (err) {
-    res.status(400).json({ success: false, error: err.message });
   }
-});
-
+);
 
 // ✅ GET Reviews
 router.get("/reviews/:productId", auth, async (req, res) => {
@@ -1039,14 +1107,15 @@ router.get("/reviews/:productId", auth, async (req, res) => {
       .populate("user", "name email")
       .populate({
         path: "product",
-        select: "title description price images product_size rating reviews_count",
+        select:
+          "title description price images product_size rating reviews_count",
         populate: [
           { path: "model" },
           { path: "brand" },
           { path: "seller", select: "name email" },
           { path: "color" },
-          { path: "shipping" }
-        ]
+          { path: "shipping" },
+        ],
       })
       .sort({ createdAt: -1 })
       .lean();
@@ -1055,20 +1124,20 @@ router.get("/reviews/:productId", auth, async (req, res) => {
       // ✅ Check if user bought the product
       const orderExists = await Order.exists({
         user: review.user._id,
-        products: new mongoose.Types.ObjectId(productId)
+        products: new mongoose.Types.ObjectId(productId),
       });
       review.is_buy = !!orderExists;
 
       // ✅ Attach full URL to images
       if (review.images?.length > 0) {
-        review.images = review.images.map(img => {
-          const imagePath = img.startsWith('/') ? img : `/${img}`;
+        review.images = review.images.map((img) => {
+          const imagePath = img.startsWith("/") ? img : `/${img}`;
           return `${BASE_URL}${imagePath}`;
         });
       }
       if (review.product?.images?.length > 0) {
-        review.product.images = review.product.images.map(img => {
-          const imagePath = img.startsWith('/') ? img : `/${img}`;
+        review.product.images = review.product.images.map((img) => {
+          const imagePath = img.startsWith("/") ? img : `/${img}`;
           return `${BASE_URL}${imagePath}`;
         });
       }
@@ -1098,7 +1167,7 @@ router.get("/reviews/:productId", auth, async (req, res) => {
       success: true,
       average_rating: avgRating.toFixed(1),
       total_reviews: reviews.length,
-      reviews
+      reviews,
     });
   } catch (err) {
     console.error("Error fetching reviews:", err);
@@ -1106,58 +1175,66 @@ router.get("/reviews/:productId", auth, async (req, res) => {
   }
 });
 
-router.get("/reviews/:productId/ratings-distribution", auth, async (req, res) => {
-  try {
-    const { productId } = req.params;
+router.get(
+  "/reviews/:productId/ratings-distribution",
+  auth,
+  async (req, res) => {
+    try {
+      const { productId } = req.params;
 
-    // Group by rating and count occurrences
-    const stats = await Review.aggregate([
-      { $match: { product: new mongoose.Types.ObjectId(productId) } },
-      {
-        $group: {
-          _id: "$rating",   // group by rating (1–5)
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: -1 } } // sort by rating desc (5 → 1)
-    ]);
+      // Group by rating and count occurrences
+      const stats = await Review.aggregate([
+        { $match: { product: new mongoose.Types.ObjectId(productId) } },
+        {
+          $group: {
+            _id: "$rating", // group by rating (1–5)
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: -1 } }, // sort by rating desc (5 → 1)
+      ]);
 
-    // ✅ Total number of reviews
-    const totalReviews = stats.reduce((acc, r) => acc + r.count, 0);
+      // ✅ Total number of reviews
+      const totalReviews = stats.reduce((acc, r) => acc + r.count, 0);
 
-    // ✅ Calculate weighted sum of ratings
-    const totalRatingSum = stats.reduce((acc, r) => acc + (r._id * r.count), 0);
+      // ✅ Calculate weighted sum of ratings
+      const totalRatingSum = stats.reduce((acc, r) => acc + r._id * r.count, 0);
 
-    // ✅ Calculate average rating
-    const averageRating = totalReviews > 0 ? (totalRatingSum / totalReviews).toFixed(1) : 0;
+      // ✅ Calculate average rating
+      const averageRating =
+        totalReviews > 0 ? (totalRatingSum / totalReviews).toFixed(1) : 0;
 
-    // ✅ Initialize default structure (so missing ratings get 0%)
-    const distribution = {
-      5: { count: 0, percentage: 0 },
-      4: { count: 0, percentage: 0 },
-      3: { count: 0, percentage: 0 },
-      2: { count: 0, percentage: 0 },
-      1: { count: 0, percentage: 0 }
-    };
+      // ✅ Initialize default structure (so missing ratings get 0%)
+      const distribution = {
+        5: { count: 0, percentage: 0 },
+        4: { count: 0, percentage: 0 },
+        3: { count: 0, percentage: 0 },
+        2: { count: 0, percentage: 0 },
+        1: { count: 0, percentage: 0 },
+      };
 
-    // ✅ Fill counts + percentages
-    stats.forEach(r => {
-      const percentage = totalReviews > 0 ? ((r.count / totalReviews) * 100).toFixed(1) : 0;
-      distribution[r._id] = { count: r.count, percentage: Number(percentage) };
-    });
+      // ✅ Fill counts + percentages
+      stats.forEach((r) => {
+        const percentage =
+          totalReviews > 0 ? ((r.count / totalReviews) * 100).toFixed(1) : 0;
+        distribution[r._id] = {
+          count: r.count,
+          percentage: Number(percentage),
+        };
+      });
 
-    res.status(200).json({
-      success: true,
-      total_reviews: totalReviews,
-      average_rating: Number(averageRating),
-      distribution
-    });
-  } catch (err) {
-    console.error("Error fetching rating distribution:", err);
-    res.status(400).json({ success: false, error: err.message });
+      res.status(200).json({
+        success: true,
+        total_reviews: totalReviews,
+        average_rating: Number(averageRating),
+        distribution,
+      });
+    } catch (err) {
+      console.error("Error fetching rating distribution:", err);
+      res.status(400).json({ success: false, error: err.message });
+    }
   }
-});
-
+);
 
 // ✅ Like a review
 router.post("/reviews/:id/like", auth, async (req, res) => {
@@ -1167,13 +1244,13 @@ router.post("/reviews/:id/like", auth, async (req, res) => {
 
     // Remove from dislikes if exists
     review.dislikes = review.dislikes.filter(
-      u => u.toString() !== req.user._id.toString()
+      (u) => u.toString() !== req.user._id.toString()
     );
 
     // Toggle like
     if (review.likes.includes(req.user._id)) {
       review.likes = review.likes.filter(
-        u => u.toString() !== req.user._id.toString()
+        (u) => u.toString() !== req.user._id.toString()
       );
     } else {
       review.likes.push(req.user._id);
@@ -1183,14 +1260,13 @@ router.post("/reviews/:id/like", auth, async (req, res) => {
     res.json({
       message: "Like updated",
       likes: review.likes.length,
-      dislikes: review.dislikes.length
+      dislikes: review.dislikes.length,
     });
   } catch (err) {
     console.error("Error liking review:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
 
 // ✅ Dislike a review
 router.post("/reviews/:id/dislike", auth, async (req, res) => {
@@ -1200,13 +1276,13 @@ router.post("/reviews/:id/dislike", auth, async (req, res) => {
 
     // Remove from likes if exists
     review.likes = review.likes.filter(
-      u => u.toString() !== req.user._id.toString()
+      (u) => u.toString() !== req.user._id.toString()
     );
 
     // Toggle dislike
     if (review.dislikes.includes(req.user._id)) {
       review.dislikes = review.dislikes.filter(
-        u => u.toString() !== req.user._id.toString()
+        (u) => u.toString() !== req.user._id.toString()
       );
     } else {
       review.dislikes.push(req.user._id);
@@ -1216,14 +1292,13 @@ router.post("/reviews/:id/dislike", auth, async (req, res) => {
     res.json({
       message: "Dislike updated",
       likes: review.likes.length,
-      dislikes: review.dislikes.length
+      dislikes: review.dislikes.length,
     });
   } catch (err) {
     console.error("Error disliking review:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
 
 // ✅ Report a review
 router.post("/reviews/:id/report", auth, async (req, res) => {
@@ -1234,10 +1309,12 @@ router.post("/reviews/:id/report", auth, async (req, res) => {
 
     // Check if user already reported
     const alreadyReported = review.reports.find(
-      r => r.user.toString() === req.user._id.toString()
+      (r) => r.user.toString() === req.user._id.toString()
     );
     if (alreadyReported) {
-      return res.status(400).json({ message: "You already reported this review" });
+      return res
+        .status(400)
+        .json({ message: "You already reported this review" });
     }
 
     // Add report
@@ -1246,7 +1323,7 @@ router.post("/reviews/:id/report", auth, async (req, res) => {
 
     res.json({
       message: "Review reported successfully",
-      total_reports: review.reports.length
+      total_reports: review.reports.length,
     });
   } catch (err) {
     console.error("Error reporting review:", err);
@@ -1254,39 +1331,41 @@ router.post("/reviews/:id/report", auth, async (req, res) => {
   }
 });
 
-
 //---------------------------------------- Vendoor API---------------------------------------------------- //
 
+router.post(
+  "/products",
+  auth,
+  uploadMultipleProductImages,
+  async (req, res) => {
+    try {
+      const images = req.files ? req.files.map((file) => file.path) : [];
 
-router.post("/products", auth, uploadMultipleProductImages, async (req, res) => {
-  try {
-    const images = req.files ? req.files.map(file => file.path) : [];
-    
-    const product = new Product({
-      ...req.body,
-      images,
-      seller: req.user._id,
-    });
-
-    await product.save();
-    res.status(201).json({ success: true, data: product });
-  } catch (err) {
-    if (req.files) {
-      req.files.forEach(file => {
-        // Check if file exists before trying to delete
-        fs.access(file.path, fs.constants.F_OK, (accessErr) => {
-          if (!accessErr) {
-            fs.unlink(file.path, (unlinkErr) => {
-              if (unlinkErr) console.error("Error deleting file:", unlinkErr);
-            });
-          }
-        });
+      const product = new Product({
+        ...req.body,
+        images,
+        seller: req.user._id,
       });
-    }
-    res.status(400).json({ success: false, error: err.message });
-  }
-});
 
+      await product.save();
+      res.status(201).json({ success: true, data: product });
+    } catch (err) {
+      if (req.files) {
+        req.files.forEach((file) => {
+          // Check if file exists before trying to delete
+          fs.access(file.path, fs.constants.F_OK, (accessErr) => {
+            if (!accessErr) {
+              fs.unlink(file.path, (unlinkErr) => {
+                if (unlinkErr) console.error("Error deleting file:", unlinkErr);
+              });
+            }
+          });
+        });
+      }
+      res.status(400).json({ success: false, error: err.message });
+    }
+  }
+);
 
 // ✅ AI validation helper with JSON mode
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -1350,7 +1429,6 @@ Format:
   }
 }
 
-
 // ✅ Bulk upload API with validation
 router.post(
   "/products/bulk-upload",
@@ -1359,7 +1437,9 @@ router.post(
   async (req, res) => {
     try {
       if (!req.file) {
-        return res.status(400).json({ success: false, error: "No file uploaded" });
+        return res
+          .status(400)
+          .json({ success: false, error: "No file uploaded" });
       }
 
       // Step 1: Parse CSV
@@ -1383,7 +1463,7 @@ router.post(
       // // Step 2: Validate rows with OpenAI
       // for (let i = 0; i < rows.length; i++) {
       //   const result = await validateRow(rows[i], i + 1);
-      
+
       //   if (result) {
       //     return res.status(400).json({
       //       success: false,
@@ -1396,10 +1476,18 @@ router.post(
       // Step 3: Build product docs
       const products = [];
       for (let row of rows) {
-        const modelDoc = row.model ? await Model.findOne({ name: row.model }) : null;
-        const brandDoc = row.brand ? await Brand.findOne({ name: row.brand }) : null;
-        const colorDoc = row.color ? await Color.findOne({ name: row.color }) : null;
-        const shippingDoc = row.shipping ? await ShippingMethod.findOne({ name: row.shipping }) : null;
+        const modelDoc = row.model
+          ? await Model.findOne({ name: row.model })
+          : null;
+        const brandDoc = row.brand
+          ? await Brand.findOne({ name: row.brand })
+          : null;
+        const colorDoc = row.color
+          ? await Color.findOne({ name: row.color })
+          : null;
+        const shippingDoc = row.shipping
+          ? await ShippingMethod.findOne({ name: row.shipping })
+          : null;
 
         const normalizeBoolean = (val) => {
           if (!val) return null;
@@ -1460,8 +1548,6 @@ router.post(
   }
 );
 
-
-
 // ✅ Update Product (only by product owner)
 router.patch("/products/:id", auth, async (req, res) => {
   try {
@@ -1472,7 +1558,9 @@ router.patch("/products/:id", auth, async (req, res) => {
     );
 
     if (!product) {
-      return res.status(404).json({ success: false, error: "Product not found or not authorized" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Product not found or not authorized" });
     }
 
     res.json({ success: true, data: product });
@@ -1480,7 +1568,6 @@ router.patch("/products/:id", auth, async (req, res) => {
     res.status(400).json({ success: false, error: err.message });
   }
 });
-
 
 // ✅ Delete Product (only by product owner)
 router.delete("/products/:id", auth, async (req, res) => {
@@ -1491,7 +1578,9 @@ router.delete("/products/:id", auth, async (req, res) => {
     });
 
     if (!product) {
-      return res.status(404).json({ success: false, error: "Product not found or not authorized" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Product not found or not authorized" });
     }
 
     res.json({ success: true, message: "Product deleted successfully" });
@@ -1507,157 +1596,170 @@ router.get("/my-products", auth, async (req, res) => {
       .sort({ createdAt: -1 });
 
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const productsWithUrls = products.map(p => ({
+    const productsWithUrls = products.map((p) => ({
       ...p.toObject(),
-      images: p.images ? p.images.map(img => `${baseUrl}/${img}`) : []
+      images: p.images ? p.images.map((img) => `${baseUrl}/${img}`) : [],
     }));
 
-    res.json({ success: true, count: productsWithUrls.length, data: productsWithUrls });
+    res.json({
+      success: true,
+      count: productsWithUrls.length,
+      data: productsWithUrls,
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-
 // GET /vendor/orders
-router.get('/vendor/orders', auth, async (req, res) => {
+router.get("/vendor/orders", auth, async (req, res) => {
   try {
     const vendorId = req.user._id;
-    const host = req.get('host'); 
-    const protocol = req.protocol; 
+    const host = req.get("host");
+    const protocol = req.protocol;
 
     const orders = await Order.find({ products: { $exists: true, $ne: [] } })
       .populate({
         path: "items.product",
         populate: {
           path: "seller",
-          select: "-password -is_active -is_staff -created_at -updated_at"
-        }
+          select: "-password -is_active -is_staff -created_at -updated_at",
+        },
       })
       .populate("user", "name email")
       .populate("shipping_method")
       .populate("shipping_address")
       .sort({ createdAt: -1 });
 
-    const vendorOrders = orders.map(order => {
-      const vendorItems = order.items.filter(
-        item => item.product?.seller?._id.toString() === vendorId.toString()
-      );
+    const vendorOrders = orders
+      .map((order) => {
+        const vendorItems = order.items.filter(
+          (item) => item.product?.seller?._id.toString() === vendorId.toString()
+        );
 
-      if (vendorItems.length === 0) return null;
+        if (vendorItems.length === 0) return null;
 
-      // ✅ Process vendor items (images with full URL)
-      const processedItems = vendorItems.map(item => {
-        if (item.product && item.product.images) {
-          const productWithFullImages = {
-            ...item.product.toObject(),
-            images: item.product.images.map(image => {
-              if (image.startsWith('http://') || image.startsWith('https://')) {
-                return image;
-              }
-              return `${protocol}://${host}/${image.replace(/^\/+/, '')}`;
-            })
-          };
-          return {
-            ...item.toObject(),
-            product: productWithFullImages
-          };
-        }
-        return item;
-      });
+        // ✅ Process vendor items (images with full URL)
+        const processedItems = vendorItems.map((item) => {
+          if (item.product && item.product.images) {
+            const productWithFullImages = {
+              ...item.product.toObject(),
+              images: item.product.images.map((image) => {
+                if (
+                  image.startsWith("http://") ||
+                  image.startsWith("https://")
+                ) {
+                  return image;
+                }
+                return `${protocol}://${host}/${image.replace(/^\/+/, "")}`;
+              }),
+            };
+            return {
+              ...item.toObject(),
+              product: productWithFullImages,
+            };
+          }
+          return item;
+        });
 
-      // ✅ Process return_images to include full URLs
-      const returnImagesWithFullPath = (order.return_images || []).map(image => {
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-          return image;
-        }
-        return `${protocol}://${host}/${image.replace(/^\/+/, '')}`;
-      });
+        // ✅ Process return_images to include full URLs
+        const returnImagesWithFullPath = (order.return_images || []).map(
+          (image) => {
+            if (image.startsWith("http://") || image.startsWith("https://")) {
+              return image;
+            }
+            return `${protocol}://${host}/${image.replace(/^\/+/, "")}`;
+          }
+        );
 
-      return {
-        _id: order._id,
-        user: order.user,
-        order_source: order.order_source,
-        total_price: processedItems.reduce((sum, i) => sum + (i.price * i.quantity), 0),
-        payment_status: order.payment_status,
-        payment_method: order.payment_method,
-        order_status: order.order_status,
-        shipping_method: order.shipping_method,
-        shipping_address: order.shipping_address,
-        note: order.note,
-        createdAt: order.createdAt,
-        items: processedItems,
+        return {
+          _id: order._id,
+          user: order.user,
+          order_source: order.order_source,
+          total_price: processedItems.reduce(
+            (sum, i) => sum + i.price * i.quantity,
+            0
+          ),
+          payment_status: order.payment_status,
+          payment_method: order.payment_method,
+          order_status: order.order_status,
+          shipping_method: order.shipping_method,
+          shipping_address: order.shipping_address,
+          note: order.note,
+          createdAt: order.createdAt,
+          items: processedItems,
 
-        // ✅ New fields
-        return_reason: order.return_reason || null,
-        return_images: returnImagesWithFullPath
-      };
-    }).filter(o => o !== null);
+          // ✅ New fields
+          return_reason: order.return_reason || null,
+          return_images: returnImagesWithFullPath,
+        };
+      })
+      .filter((o) => o !== null);
 
     res.status(200).json({
       success: true,
       count: vendorOrders.length,
-      orders: vendorOrders
+      orders: vendorOrders,
     });
   } catch (error) {
     console.error("Error in vendor orders:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error"
+      message: "Internal server error",
     });
   }
 });
 
-
-
 // Alternative: Separate endpoints for each collection
-router.get('/brands', async (req, res) => {
+router.get("/brands", async (req, res) => {
   try {
     const brands = await Brand.find().sort({ name: 1 });
     res.status(200).json({
       success: true,
       data: brands,
-      count: brands.length
+      count: brands.length,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching brands',
-      error: error.message
+      message: "Error fetching brands",
+      error: error.message,
     });
   }
 });
 
-router.get('/models', async (req, res) => {
+router.get("/models", async (req, res) => {
   try {
-    const models = await Model.find().populate('brand', 'name description').sort({ name: 1 });
+    const models = await Model.find()
+      .populate("brand", "name description")
+      .sort({ name: 1 });
     res.status(200).json({
       success: true,
       data: models,
-      count: models.length
+      count: models.length,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching models',
-      error: error.message
+      message: "Error fetching models",
+      error: error.message,
     });
   }
 });
 
-router.get('/colors', async (req, res) => {
+router.get("/colors", async (req, res) => {
   try {
     const colors = await Color.find().sort({ name: 1 });
     res.status(200).json({
       success: true,
       data: colors,
-      count: colors.length
+      count: colors.length,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error fetching colors',
-      error: error.message
+      message: "Error fetching colors",
+      error: error.message,
     });
   }
 });
@@ -1667,9 +1769,14 @@ router.post("/shipping", auth, async (req, res) => {
     const userId = req.user._id;
     const { name, description, cost, estimated_days } = req.body;
 
-    const existingMethod = await ShippingMethod.findOne({ user: userId, name: name });
+    const existingMethod = await ShippingMethod.findOne({
+      user: userId,
+      name: name,
+    });
     if (existingMethod) {
-      return res.status(400).json({ message: "Shipping method with this name already exists" });
+      return res
+        .status(400)
+        .json({ message: "Shipping method with this name already exists" });
     }
 
     const shippingMethod = new ShippingMethod({
@@ -1677,40 +1784,40 @@ router.post("/shipping", auth, async (req, res) => {
       name,
       description,
       cost,
-      estimated_days
+      estimated_days,
     });
 
     await shippingMethod.save();
 
     res.status(201).json({
       message: "Shipping method created successfully",
-      shippingMethod
+      shippingMethod,
     });
   } catch (error) {
     // Handle duplicate key error specifically
     if (error.code === 11000) {
-      return res.status(400).json({ 
-        message: "Shipping method with this name already exists" 
+      return res.status(400).json({
+        message: "Shipping method with this name already exists",
       });
     }
-    
+
     console.error("Error creating shipping method:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
-
 
 // ✅ Get All Shipping Methods for User
 router.get("/all_shippings", auth, async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const shippingMethods = await ShippingMethod.find({ user: userId })
-      .sort({ createdAt: -1 });
+    const shippingMethods = await ShippingMethod.find({ user: userId }).sort({
+      createdAt: -1,
+    });
 
     res.status(200).json({
       message: "Shipping methods retrieved successfully",
-      shippingMethods
+      shippingMethods,
     });
   } catch (error) {
     console.error("Error getting shipping methods:", error);
@@ -1724,14 +1831,17 @@ router.get("/shipping/:id", auth, async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const shippingMethod = await ShippingMethod.findOne({ _id: id, user: userId });
+    const shippingMethod = await ShippingMethod.findOne({
+      _id: id,
+      user: userId,
+    });
     if (!shippingMethod) {
       return res.status(404).json({ message: "Shipping method not found" });
     }
 
     res.status(200).json({
       message: "Shipping method retrieved successfully",
-      shippingMethod
+      shippingMethod,
     });
   } catch (error) {
     console.error("Error getting shipping method:", error);
@@ -1751,11 +1861,13 @@ router.patch("/shipping/:id", auth, async (req, res) => {
       const existingMethod = await ShippingMethod.findOne({
         user: userId,
         name: updateData.name,
-        _id: { $ne: id } // exclude current shipping method
+        _id: { $ne: id }, // exclude current shipping method
       });
 
       if (existingMethod) {
-        return res.status(400).json({ message: "Shipping method with this name already exists" });
+        return res
+          .status(400)
+          .json({ message: "Shipping method with this name already exists" });
       }
     }
 
@@ -1771,7 +1883,7 @@ router.patch("/shipping/:id", auth, async (req, res) => {
 
     res.status(200).json({
       message: "Shipping method updated successfully",
-      shippingMethod
+      shippingMethod,
     });
   } catch (error) {
     console.error("Error updating shipping method:", error);
@@ -1779,14 +1891,16 @@ router.patch("/shipping/:id", auth, async (req, res) => {
   }
 });
 
-
 // ✅ Delete Shipping Method
 router.delete("/shipping/:id", auth, async (req, res) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const shippingMethod = await ShippingMethod.findOneAndDelete({ _id: id, user: userId });
+    const shippingMethod = await ShippingMethod.findOneAndDelete({
+      _id: id,
+      user: userId,
+    });
     if (!shippingMethod) {
       return res.status(404).json({ message: "Shipping method not found" });
     }
@@ -1805,7 +1919,13 @@ router.patch("/order/:orderId/status", auth, async (req, res) => {
     const { order_status } = req.body;
 
     // Validate status
-    const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+    const validStatuses = [
+      "pending",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ];
     if (!validStatuses.includes(order_status)) {
       return res.status(400).json({ message: "Invalid order status" });
     }
@@ -1813,7 +1933,9 @@ router.patch("/order/:orderId/status", auth, async (req, res) => {
     // Find the order and make sure it belongs to the logged-in user
     const order = await Order.findOne({ _id: orderId });
     if (!order) {
-      return res.status(404).json({ message: "Order not found or not authorized" });
+      return res
+        .status(404)
+        .json({ message: "Order not found or not authorized" });
     }
 
     // Update only order_status (PATCH)
@@ -1822,7 +1944,7 @@ router.patch("/order/:orderId/status", auth, async (req, res) => {
 
     res.json({
       message: "Order status updated successfully",
-      order
+      order,
     });
   } catch (error) {
     console.error("Update order error:", error);
@@ -1834,20 +1956,20 @@ router.patch("/order/:orderId/status", auth, async (req, res) => {
 router.post(
   "/order/:id/return",
   auth,
-  uploadMultipleReturnOrderImages, 
+  uploadMultipleReturnOrderImages,
   async (req, res) => {
     try {
       const { id } = req.params;
       const {
-        request_type,          // "return" or "cancellation"
-        product_id,            // which product in the order
-        product_name,          // optional if product_id populated
+        request_type, // "return" or "cancellation"
+        product_id, // which product in the order
+        product_name, // optional if product_id populated
         sku,
         reason,
         quantity,
-        condition,             // "unused", "defective", etc. (only for returns)
-        preferred_resolution,  // "refund", "replacement", "store_credit"
-        additional_notes
+        condition, // "unused", "defective", etc. (only for returns)
+        preferred_resolution, // "refund", "replacement", "store_credit"
+        additional_notes,
       } = req.body;
 
       // ✅ Validate order
@@ -1857,7 +1979,7 @@ router.post(
       }
 
       // ✅ Evidence images
-      const imagePaths = req.files?.map(file => file.path) || [];
+      const imagePaths = req.files?.map((file) => file.path) || [];
 
       // ✅ Generate a unique request_id
       const requestId = `RC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -1910,21 +2032,24 @@ router.get("/vendor/return-orders", auth, async (req, res) => {
     const protocol = req.protocol;
 
     if (!status) {
-      return res.status(400).json({ message: "Status query parameter is required" });
+      return res
+        .status(400)
+        .json({ message: "Status query parameter is required" });
     }
 
     const vendorId = req.user._id; // logged-in vendor
 
     // ✅ Get orders that belong to vendor
-    const orders = await Order.find({ products: { $exists: true, $ne: [] } })
-      .populate({
-        path: "products",
-        match: { seller: vendorId },
-      });
+    const orders = await Order.find({
+      products: { $exists: true, $ne: [] },
+    }).populate({
+      path: "products",
+      match: { seller: vendorId },
+    });
 
     const orderIds = orders
-      .filter(order => order.products.length > 0)
-      .map(order => order._id);
+      .filter((order) => order.products.length > 0)
+      .map((order) => order._id);
 
     // ✅ Build query
     const query = { status, order: { $in: orderIds } };
@@ -1939,15 +2064,15 @@ router.get("/vendor/return-orders", auth, async (req, res) => {
       .sort({ createdAt: -1 });
 
     // ✅ Format response
-    const results = requests.map(reqObj => {
+    const results = requests.map((reqObj) => {
       const request = reqObj.toObject();
 
       // ---- Fix product images (inside order) ----
       if (request.order?.products) {
-        request.order.products = request.order.products.map(prod => {
+        request.order.products = request.order.products.map((prod) => {
           const p = { ...prod };
           if (p.images && p.images.length > 0) {
-            p.images = p.images.map(img => `${protocol}://${host}/${img}`);
+            p.images = p.images.map((img) => `${protocol}://${host}/${img}`);
           }
           return p;
         });
@@ -1955,7 +2080,9 @@ router.get("/vendor/return-orders", auth, async (req, res) => {
 
       // ---- Fix evidence images ----
       if (request.evidence && request.evidence.length > 0) {
-        request.evidence = request.evidence.map(img => `${protocol}://${host}/${img}`);
+        request.evidence = request.evidence.map(
+          (img) => `${protocol}://${host}/${img}`
+        );
       }
 
       return {
@@ -2010,7 +2137,6 @@ router.get("/vendor/return-orders", auth, async (req, res) => {
   }
 });
 
-
 // ✅ Update Return Order Status
 router.post("/vendor/return-orders/status", auth, async (req, res) => {
   try {
@@ -2018,7 +2144,9 @@ router.post("/vendor/return-orders/status", auth, async (req, res) => {
 
     // ✅ Validation
     if (!returnOrderId || !status) {
-      return res.status(400).json({ message: "returnOrderId and status are required" });
+      return res
+        .status(400)
+        .json({ message: "returnOrderId and status are required" });
     }
 
     // ✅ Allowed statuses
@@ -2036,7 +2164,7 @@ router.post("/vendor/return-orders/status", auth, async (req, res) => {
       .populate("user", "name email")
       .populate({
         path: "order",
-        populate: { path: "products" }
+        populate: { path: "products" },
       });
 
     if (!updatedReturnOrder) {
@@ -2047,12 +2175,10 @@ router.post("/vendor/return-orders/status", auth, async (req, res) => {
       message: "Return order status updated successfully",
       returnOrder: updatedReturnOrder,
     });
-
   } catch (error) {
     console.error("❌ Error updating return order status:", error);
     res.status(500).json({ message: "Server error", error });
   }
 });
-
 
 module.exports = router;
