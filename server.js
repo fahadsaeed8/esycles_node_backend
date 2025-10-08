@@ -19,6 +19,7 @@ const allowedOrigins = [
   "https://noreplyxyz.esycles.com",
   "https://admin.esycles.com",
   "https://vendor.esycles.com",
+  "https://customer.esycles.com",
 ];
 
 const app = express();
