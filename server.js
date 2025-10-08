@@ -17,6 +17,7 @@ const allowedOrigins = [
   "https://bdbb668c9ac4.ngrok-free.app",
   "https://user.esycles.com",
   "https://noreplyxyz.esycles.com",
+  "https://admin.esycles.com",
 ];
 
 const app = express();
