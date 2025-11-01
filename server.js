@@ -9,7 +9,7 @@ const adsRoutes = require("./routes/ads");
 const paymentCardRoutes = require("./routes/paymentCards");
 const path = require("path");
 
-const PORT = 5001;
+const PORT = 5000;
 dotenv.config();
 const allowedOrigins = [
   "http://localhost:3000",
