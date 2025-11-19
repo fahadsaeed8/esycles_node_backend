@@ -297,6 +297,12 @@ const auctionAdSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    firstName: {
+      type: String,
+    },
+    lastName: {
+      type: String,
+    },
     contactNumber: {
       type: String,
       required: true,
@@ -305,7 +311,24 @@ const auctionAdSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-
+    address: {
+      type: String,
+    },
+    city: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    zipCode: {
+      type: String,
+    },
+    country: {
+      type: String,
+    },
+    language: {
+      type: String,
+    },
     location: {
       type: String,
       required: true,
@@ -353,7 +376,15 @@ const auctionAdSchema = new mongoose.Schema(
     },
     condition: {
       type: String,
-      enum: ["New", "Like_New", "Open_Box", "Acceptable", "Pre_Owned", "As_Is"],
+      enum: [
+        "New",
+        "Like_New",
+        "Open_Box",
+        "Acceptable",
+        "Refurbished",
+        "Pre_Owned",
+        "As_Is",
+      ],
       required: true,
     },
     brand: {
@@ -365,6 +396,23 @@ const auctionAdSchema = new mongoose.Schema(
     specifications: {
       type: String, // Extra details like size, frame, etc.
     },
+    color: {
+      type: String,
+      enum: [
+        "Black",
+        "White",
+        "Red",
+        "Blue",
+        "Green",
+        "Yellow",
+        "Gray",
+        "Silver",
+        "Orange",
+        "Pink",
+        "Purple",
+        "Other",
+      ],
+    },
 
     // 4. Media Uploads
     images: [
@@ -374,6 +422,12 @@ const auctionAdSchema = new mongoose.Schema(
     ],
     videoLink: {
       type: String, // YouTube or video link
+    },
+    returns: {
+      type: String,
+    },
+    warranty: {
+      type: String,
     },
 
     // 5. Auction Pricing Rules
