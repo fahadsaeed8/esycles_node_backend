@@ -1,8 +1,17 @@
 const express = require("express");
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 const router = express.Router();
-const { ClassifiedAd, AuctionAd, adDuration, savedAuctionAd, savedClassifiedAd, AdReport, BidHistory, Notification } = require("../models/Ads");
-const auth = require('../middleware/auth');
+const {
+  ClassifiedAd,
+  AuctionAd,
+  adDuration,
+  savedAuctionAd,
+  savedClassifiedAd,
+  AdReport,
+  BidHistory,
+  Notification,
+} = require("../models/Ads");
+const auth = require("../middleware/auth");
 const adsUpload = require("../middleware/adsUpload");
 const { notifyOtherBidders } = require("../utils/notificationHelper");
 const auctionQueue = require("../jobs/auctionQueue");
@@ -16,7 +25,7 @@ router.post("/classified-ads", auth, adsUpload, async (req, res) => {
       });
     }
     // get file paths/urls from multer
-    const imagePaths = req.files.map(file => file.path);
+    const imagePaths = req.files.map((file) => file.path);
 
     // Prepare data
     let classifiedAdData = {
@@ -58,7 +67,7 @@ router.patch("/classified-ads/:id", auth, adsUpload, async (req, res) => {
     const { id } = req.params;
 
     // get file paths/urls from multer if files are uploaded
-    let imagePaths = req.files?.map(file => file.path) || [];
+    let imagePaths = req.files?.map((file) => file.path) || [];
 
     // find the classified ad
     let classifiedAd = await ClassifiedAd.findById(id);
@@ -70,7 +79,7 @@ router.patch("/classified-ads/:id", auth, adsUpload, async (req, res) => {
     }
 
     // update fields dynamically
-    Object.keys(req.body).forEach(key => {
+    Object.keys(req.body).forEach((key) => {
       classifiedAd[key] = req.body[key];
     });
 
@@ -82,7 +91,9 @@ router.patch("/classified-ads/:id", auth, adsUpload, async (req, res) => {
     // If status = Published, recalc adLife + expiryDate
     if (req.body.status === "Published") {
       const now = new Date();
-      const adLife = req.body.adLife ? Number(req.body.adLife) : classifiedAd.adLife || 7;
+      const adLife = req.body.adLife
+        ? Number(req.body.adLife)
+        : classifiedAd.adLife || 7;
 
       classifiedAd.adLife = adLife;
       classifiedAd.startDate = now;
@@ -107,7 +118,6 @@ router.patch("/classified-ads/:id", auth, adsUpload, async (req, res) => {
     });
   }
 });
-
 
 router.patch("/update-classified-ads/:id", auth, async (req, res) => {
   try {
@@ -148,15 +158,17 @@ router.patch("/update-classified-ads/:id", auth, async (req, res) => {
   }
 });
 
-
-// Pause ads by user / approve ads by admin 
+// Pause ads by user / approve ads by admin
 router.patch("/pause-approve-classified-ad/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { ad_status, is_pause } = req.body;
 
     // Validate: only one field can be updated at a time
-    if ((ad_status && typeof is_pause !== "undefined") || (!ad_status && typeof is_pause === "undefined")) {
+    if (
+      (ad_status && typeof is_pause !== "undefined") ||
+      (!ad_status && typeof is_pause === "undefined")
+    ) {
       return res.status(400).json({
         success: false,
         message: "Provide only one field: either ad_status or is_pause",
@@ -178,7 +190,9 @@ router.patch("/pause-approve-classified-ad/:id", auth, async (req, res) => {
       updateData.is_pause = is_pause;
     }
 
-    const updatedAd = await ClassifiedAd.findByIdAndUpdate(id, updateData, { new: true });
+    const updatedAd = await ClassifiedAd.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
     if (!updatedAd) {
       return res.status(404).json({
         success: false,
@@ -199,28 +213,29 @@ router.patch("/pause-approve-classified-ad/:id", auth, async (req, res) => {
   }
 });
 
-
 router.get("/classified-ads", auth, async (req, res) => {
   try {
-    const { 
-      status, 
-      category, 
-      sellerType, 
-      location, 
-      condition, 
-      adPackageType, 
-      minPrice, 
-      maxPrice, 
-      ad_status // <-- new filter
+    const {
+      status,
+      category,
+      sellerType,
+      location,
+      condition,
+      adPackageType,
+      minPrice,
+      maxPrice,
+      ad_status, // <-- new filter
     } = req.query;
 
     if (!status) {
-      return res.status(400).json({ success: false, message: "Status filter is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Status filter is required" });
     }
 
-    const filters = { 
-      status, 
-      is_pause: false // 🔑 Always fetch ads where is_pause = false
+    const filters = {
+      status,
+      is_pause: false, // 🔑 Always fetch ads where is_pause = false
     };
 
     if (category) filters.category = category;
@@ -246,15 +261,17 @@ router.get("/classified-ads", auth, async (req, res) => {
 
     // get saved classified ads by user
     const savedClassifiedIds = (
-      await savedClassifiedAd.find({ user: req.user._id }).distinct("classifiedAd")
-    ).map(id => id.toString()); // convert all to string
+      await savedClassifiedAd
+        .find({ user: req.user._id })
+        .distinct("classifiedAd")
+    ).map((id) => id.toString()); // convert all to string
 
     const fullUrl = req.protocol + "://" + req.get("host");
 
-    const adsWithFullImages = classifiedAds.map(ad => {
+    const adsWithFullImages = classifiedAds.map((ad) => {
       return {
         ...ad.toObject(),
-        images: ad.images.map(img => `${fullUrl}/${img}`),
+        images: ad.images.map((img) => `${fullUrl}/${img}`),
         is_saved: savedClassifiedIds.includes(ad._id.toString()),
         adType: "classified",
       };
@@ -270,7 +287,6 @@ router.get("/classified-ads", auth, async (req, res) => {
   }
 });
 
-
 router.get("/classified-ad/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -278,20 +294,24 @@ router.get("/classified-ad/:id", auth, async (req, res) => {
     // find classified ad by ID
     const classifiedAd = await ClassifiedAd.findById(id);
     if (!classifiedAd) {
-      return res.status(404).json({ success: false, message: "No classified ad found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "No classified ad found" });
     }
 
     // get saved classified ads by user
     const savedClassifiedIds = (
-      await savedClassifiedAd.find({ user: req.user._id }).distinct("classifiedAd")
-    ).map(id => id.toString());
+      await savedClassifiedAd
+        .find({ user: req.user._id })
+        .distinct("classifiedAd")
+    ).map((id) => id.toString());
 
     const fullUrl = req.protocol + "://" + req.get("host");
 
     // build response with full image URLs + saved flag
     const adWithFullImages = {
       ...classifiedAd.toObject(),
-      images: classifiedAd.images.map(img => `${fullUrl}/${img}`),
+      images: classifiedAd.images.map((img) => `${fullUrl}/${img}`),
       is_saved: savedClassifiedIds.includes(classifiedAd._id.toString()),
     };
 
@@ -303,7 +323,6 @@ router.get("/classified-ad/:id", auth, async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 });
-
 
 // 🔧 Helper function (no extra filters)
 async function getClassifiedAds(req, res, boostField) {
@@ -320,14 +339,16 @@ async function getClassifiedAds(req, res, boostField) {
 
     // ✅ saved ads by user
     const savedClassifiedIds = (
-      await savedClassifiedAd.find({ user: req.user._id }).distinct("classifiedAd")
-    ).map(id => id.toString());
+      await savedClassifiedAd
+        .find({ user: req.user._id })
+        .distinct("classifiedAd")
+    ).map((id) => id.toString());
 
     const fullUrl = `${req.protocol}://${req.get("host")}`;
 
-    const adsWithFullImages = classifiedAds.map(ad => ({
+    const adsWithFullImages = classifiedAds.map((ad) => ({
       ...ad.toObject(),
-      images: ad.images.map(img => `${fullUrl}/${img}`),
+      images: ad.images.map((img) => `${fullUrl}/${img}`),
       is_saved: savedClassifiedIds.includes(ad._id.toString()),
       adType: "classified",
     }));
@@ -351,10 +372,7 @@ router.get("/featured-classified-ads", auth, (req, res) =>
   getClassifiedAds(req, res, "is_featured")
 );
 
-
-
-
-  // here "images" should match your Postman key
+// here "images" should match your Postman key
 router.post("/auction-ads", auth, adsUpload, async (req, res) => {
   try {
     if (!req.body.adLife) {
@@ -363,7 +381,7 @@ router.post("/auction-ads", auth, adsUpload, async (req, res) => {
         message: "adLife is required",
       });
     }
-    const imagePaths = req.files ? req.files.map(file => file.path) : [];
+    const imagePaths = req.files ? req.files.map((file) => file.path) : [];
 
     const auctionAd = new AuctionAd({
       ...req.body,
@@ -402,7 +420,7 @@ router.patch("/auction-ads/:id", auth, adsUpload, async (req, res) => {
     const { id } = req.params;
 
     // get uploaded images if any
-    const imagePaths = req.files ? req.files.map(file => file.path) : [];
+    const imagePaths = req.files ? req.files.map((file) => file.path) : [];
 
     // find the auction ad
     let auctionAd = await AuctionAd.findById(id);
@@ -414,7 +432,7 @@ router.patch("/auction-ads/:id", auth, adsUpload, async (req, res) => {
     }
 
     // update fields dynamically from req.body
-    Object.keys(req.body).forEach(key => {
+    Object.keys(req.body).forEach((key) => {
       auctionAd[key] = req.body[key];
     });
 
@@ -426,7 +444,9 @@ router.patch("/auction-ads/:id", auth, adsUpload, async (req, res) => {
     // handle status = Published
     if (req.body.status === "Published") {
       const now = new Date();
-      const adLife = req.body.adLife ? Number(req.body.adLife) : auctionAd.adLife || 7;
+      const adLife = req.body.adLife
+        ? Number(req.body.adLife)
+        : auctionAd.adLife || 7;
 
       auctionAd.adLife = adLife;
       auctionAd.startDate = now;
@@ -494,16 +514,28 @@ router.patch("/update-auction-ads/:id", auth, async (req, res) => {
 // Auction Ads API with ad_status and is_pause filter
 router.get("/auction-ads", auth, async (req, res) => {
   try {
-    const { status, category, sellerType, location, condition, auctionType, minBid, maxBid, ad_status } = req.query;
+    const {
+      status,
+      category,
+      sellerType,
+      location,
+      condition,
+      auctionType,
+      minBid,
+      maxBid,
+      ad_status,
+    } = req.query;
 
     if (!status) {
-      return res.status(400).json({ success: false, message: "Status filter is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Status filter is required" });
     }
 
     // base filters
-    const filters = { 
+    const filters = {
       status,
-      is_pause: false  // ✅ always exclude paused ads
+      is_pause: false, // ✅ always exclude paused ads
     };
 
     if (category) filters.category = category;
@@ -531,14 +563,14 @@ router.get("/auction-ads", auth, async (req, res) => {
     // get saved ads by user
     const savedAuctionIds = (
       await savedAuctionAd.find({ user: req.user._id }).distinct("auctionAd")
-    ).map(id => id.toString()); // convert all to string
-  
+    ).map((id) => id.toString()); // convert all to string
+
     const fullUrl = req.protocol + "://" + req.get("host");
 
-    const adsWithFullImages = auctionAds.map(ad => {
+    const adsWithFullImages = auctionAds.map((ad) => {
       return {
         ...ad.toObject(),
-        images: ad.images.map(img => `${fullUrl}/${img}`),
+        images: ad.images.map((img) => `${fullUrl}/${img}`),
         is_saved: savedAuctionIds.includes(ad._id.toString()),
         adType: "auction",
       };
@@ -695,7 +727,7 @@ router.get("/auction-ad/:id/top-bids", auth, async (req, res) => {
       data: topBids.map((bid, index) => ({
         auctionAd: bid.auctionAd,
         bidAmount: bid.currentPlacedAmount,
-        offerStatus:bid.offer_status,
+        offerStatus: bid.offer_status,
         user: bid.user,
         bidId: bid._id,
         createdAt: bid.createdAt,
@@ -708,16 +740,17 @@ router.get("/auction-ad/:id/top-bids", auth, async (req, res) => {
   }
 });
 
-
-
-// Pause ads by user / approve ads by admin 
+// Pause ads by user / approve ads by admin
 router.patch("/pause-approve-auction-ad/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
     const { ad_status, is_pause } = req.body;
 
     // Validate: only one field allowed at a time
-    if ((ad_status && typeof is_pause !== "undefined") || (!ad_status && typeof is_pause === "undefined")) {
+    if (
+      (ad_status && typeof is_pause !== "undefined") ||
+      (!ad_status && typeof is_pause === "undefined")
+    ) {
       return res.status(400).json({
         success: false,
         message: "Something Wrong, Fields missing!",
@@ -739,9 +772,13 @@ router.patch("/pause-approve-auction-ad/:id", auth, async (req, res) => {
       updateData.is_pause = is_pause;
     }
 
-    const updatedAd = await AuctionAd.findByIdAndUpdate(id, updateData, { new: true });
+    const updatedAd = await AuctionAd.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
     if (!updatedAd) {
-      return res.status(404).json({ success: false, message: "No auction ad found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "No auction ad found" });
     }
 
     // Schedule expiry job only when admin accepts the ad
@@ -763,19 +800,17 @@ router.patch("/pause-approve-auction-ad/:id", auth, async (req, res) => {
   }
 });
 
-
-
 // Helper function to calculate winning bid
 function calculateWinningBid(activeBids, increment, startingBid) {
   if (!activeBids || activeBids.length === 0) {
     return null;
   }
 
-  const validBids = activeBids.filter(bid => bid.status !== 'Cancelled');
+  const validBids = activeBids.filter((bid) => bid.status !== "Cancelled");
   validBids.sort((a, b) => b.maxBidAmount - a.maxBidAmount);
 
   const highest = validBids[0];
-  
+
   if (validBids.length === 1) {
     return {
       bidId: highest._id,
@@ -787,10 +822,7 @@ function calculateWinningBid(activeBids, increment, startingBid) {
   const secondHighest = validBids[1];
   let winningAmount = Math.max(
     startingBid,
-    Math.min(
-      highest.maxBidAmount,
-      secondHighest.maxBidAmount + increment
-    )
+    Math.min(highest.maxBidAmount, secondHighest.maxBidAmount + increment)
   );
 
   return {
@@ -808,9 +840,9 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
 
     // Validation
     if (!price || price <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid bid price" 
+      return res.status(400).json({
+        success: false,
+        message: "Invalid bid price",
       });
     }
 
@@ -818,15 +850,15 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
       if (!maxBidAmount) {
         return res.status(400).json({
           success: false,
-          message: "Max bid amount is required for automatic bids"
+          message: "Max bid amount is required for automatic bids",
         });
       }
-      
+
       if (maxBidAmount < price) {
         const nextValidMaxBid = price;
         return res.status(400).json({
           success: false,
-          message: `Max bid amount ($${maxBidAmount}) must be greater than or equal to your initial bid amount ($${price}). Please set your max bid to at least $${nextValidMaxBid}`
+          message: `Max bid amount ($${maxBidAmount}) must be greater than or equal to your initial bid amount ($${price}). Please set your max bid to at least $${nextValidMaxBid}`,
         });
       }
     }
@@ -834,24 +866,24 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
     // Fetch auctionAd
     const auction = await AuctionAd.findById(id);
     if (!auction) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Auction Ad not found" 
+      return res.status(404).json({
+        success: false,
+        message: "Auction Ad not found",
       });
     }
 
     // Auction validation
     if (Date.now() > new Date(auction.expiryDate)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Auction has already ended" 
+      return res.status(400).json({
+        success: false,
+        message: "Auction has already ended",
       });
     }
 
     if (auction.is_pause) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Auction is currently paused" 
+      return res.status(400).json({
+        success: false,
+        message: "Auction is currently paused",
       });
     }
 
@@ -859,7 +891,7 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
     if (auction.minimumBid && price < auction.minimumBid) {
       return res.status(400).json({
         success: false,
-        message: `Bid cannot be less than minimum bid. Bidding starts from $${auction.minimumBid}`
+        message: `Bid cannot be less than minimum bid. Bidding starts from $${auction.minimumBid}`,
       });
     }
 
@@ -873,16 +905,18 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Your bid ($${price}) is too low. Next valid bid is $${nextValidBid}`,
-        nextValidBid
+        nextValidBid,
       });
     }
 
     // Check if user is already the highest bidder
-    if (auction.currentHighestBidder && 
-        auction.currentHighestBidder.toString() === req.user._id.toString()) {
+    if (
+      auction.currentHighestBidder &&
+      auction.currentHighestBidder.toString() === req.user._id.toString()
+    ) {
       return res.status(400).json({
         success: false,
-        message: "You are already the highest bidder"
+        message: "You are already the highest bidder",
       });
     }
 
@@ -899,29 +933,29 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
     // Fetch all active bids for this auction
     const activeBids = await BidHistory.find({
       auctionAd: id,
-      status: { $in: ["Leading", "Outbid"] }
+      status: { $in: ["Leading", "Outbid"] },
     });
 
     // Use the helper function to calculate winning bid
     const winningBid = calculateWinningBid(
       activeBids,
       auction.bidIncrement || 1,
-      auction.startingBid || auction.minimumBid || 1  // Updated to include minimumBid
+      auction.startingBid || auction.minimumBid || 1 // Updated to include minimumBid
     );
 
     if (!winningBid) {
       return res.status(400).json({
         success: false,
-        message: "Failed to determine winning bid"
+        message: "Failed to determine winning bid",
       });
     }
 
     // Update all leading bids to Outbid first
     await BidHistory.updateMany(
-      { 
-        auctionAd: id, 
+      {
+        auctionAd: id,
         status: "Leading",
-        _id: { $ne: winningBid.bidId } // Don't update the winning bid
+        _id: { $ne: winningBid.bidId }, // Don't update the winning bid
       },
       { status: "Outbid" }
     );
@@ -932,17 +966,17 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
     await auction.save();
 
     // Mark winner's bid as Leading and update current placed amount
-    await BidHistory.findByIdAndUpdate(winningBid.bidId, { 
+    await BidHistory.findByIdAndUpdate(winningBid.bidId, {
       status: "Leading",
-      currentPlacedAmount: winningBid.amount
+      currentPlacedAmount: winningBid.amount,
     });
 
-      await notifyOtherBidders(
-        id,
-        "Your bid is now in run-up",
-        `Your bid on auction "${auction?.title}" is now in run-up. Place your new bid!`,
-        req.user._id
-      );
+    await notifyOtherBidders(
+      id,
+      "Your bid is now in run-up",
+      `Your bid on auction "${auction?.title}" is now in run-up. Place your new bid!`,
+      req.user._id
+    );
 
     return res.status(201).json({
       success: true,
@@ -953,20 +987,17 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
         currentHighestBidder: winningBid.userId,
         isLeading: winningBid.userId.toString() === req.user._id.toString(),
         yourBidType: bidType || "Manual",
-        minimumBid: auction.minimumBid
+        minimumBid: auction.minimumBid,
       },
     });
-
   } catch (error) {
     console.error("Bid Error:", error.message);
-    res.status(500).json({ 
-      success: false, 
-      message: "Internal server error" 
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
     });
   }
 });
-
-
 
 async function getAuctionAds(req, res, boostField) {
   try {
@@ -981,13 +1012,13 @@ async function getAuctionAds(req, res, boostField) {
 
     const savedAuctionIds = (
       await savedAuctionAd.find({ user: req.user._id }).distinct("auctionAd")
-    ).map(id => id.toString());
+    ).map((id) => id.toString());
 
     const fullUrl = `${req.protocol}://${req.get("host")}`;
 
-    const adsWithFullImages = auctionAds.map(ad => ({
+    const adsWithFullImages = auctionAds.map((ad) => ({
       ...ad.toObject(),
-      images: ad.images.map(img => `${fullUrl}/${img}`),
+      images: ad.images.map((img) => `${fullUrl}/${img}`),
       is_saved: savedAuctionIds.includes(ad._id.toString()),
       adType: "auction",
     }));
@@ -1010,7 +1041,6 @@ router.get("/featured-auction-ads", auth, (req, res) =>
 router.get("/promoted-auction-ads", auth, (req, res) =>
   getAuctionAds(req, res, "boostOptions.promoteHomepage")
 );
-
 
 // GET all AdDuration by type
 router.get("/all_adDuration", auth, async (req, res) => {
@@ -1040,7 +1070,6 @@ router.get("/all_adDuration", auth, async (req, res) => {
       count: durations.length,
       data: durations,
     });
-
   } catch (error) {
     console.error("Error fetching durations:", error);
     return res.status(500).json({
@@ -1053,37 +1082,56 @@ router.get("/all_adDuration", auth, async (req, res) => {
 // POST /save-ad/:id
 router.post("/save-ad/:id", auth, async (req, res) => {
   try {
-    const { id } = req.params;           // only ad id from URL
+    const { id } = req.params; // only ad id from URL
     const { adType, action } = req.body; // other params from body
 
     if (!id || !adType || !action) {
-      return res.status(400).json({ success: false, message: "Missing fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing fields" });
     }
 
     if (adType === "classified") {
       if (action === "save") {
-        const exists = await savedClassifiedAd.findOne({ user: req.user._id, classifiedAd: id });
-        if (exists) return res.json({ success: true, message: "Already saved" });
+        const exists = await savedClassifiedAd.findOne({
+          user: req.user._id,
+          classifiedAd: id,
+        });
+        if (exists)
+          return res.json({ success: true, message: "Already saved" });
 
-        const saved = new savedClassifiedAd({ user: req.user._id, classifiedAd: id });
+        const saved = new savedClassifiedAd({
+          user: req.user._id,
+          classifiedAd: id,
+        });
         await saved.save();
         return res.json({ success: true, message: "Classified ad saved" });
       } else if (action === "unsave") {
-        await savedClassifiedAd.findOneAndDelete({ user: req.user._id, classifiedAd: id });
+        await savedClassifiedAd.findOneAndDelete({
+          user: req.user._id,
+          classifiedAd: id,
+        });
         return res.json({ success: true, message: "Classified ad unsaved" });
       }
     }
 
     if (adType === "auction") {
       if (action === "save") {
-        const exists = await savedAuctionAd.findOne({ user: req.user._id, auctionAd: id });
-        if (exists) return res.json({ success: true, message: "Already saved" });
+        const exists = await savedAuctionAd.findOne({
+          user: req.user._id,
+          auctionAd: id,
+        });
+        if (exists)
+          return res.json({ success: true, message: "Already saved" });
 
         const saved = new savedAuctionAd({ user: req.user._id, auctionAd: id });
         await saved.save();
         return res.json({ success: true, message: "Auction ad saved" });
       } else if (action === "unsave") {
-        await savedAuctionAd.findOneAndDelete({ user: req.user._id, auctionAd: id });
+        await savedAuctionAd.findOneAndDelete({
+          user: req.user._id,
+          auctionAd: id,
+        });
         return res.json({ success: true, message: "Auction ad unsaved" });
       }
     }
@@ -1094,7 +1142,6 @@ router.post("/save-ad/:id", auth, async (req, res) => {
   }
 });
 
-
 // POST /report/:type/:id
 router.post("/report/:id", auth, async (req, res) => {
   try {
@@ -1102,7 +1149,9 @@ router.post("/report/:id", auth, async (req, res) => {
     const { reason, type } = req.body;
 
     if (!reason) {
-      return res.status(400).json({ success: false, message: "Reason is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Reason is required" });
     }
 
     let adExists = null;
@@ -1110,15 +1159,22 @@ router.post("/report/:id", auth, async (req, res) => {
     if (type === "classified") {
       adExists = await ClassifiedAd.findById(id);
       if (!adExists) {
-        return res.status(404).json({ success: false, message: "Classified Ad not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Classified Ad not found" });
       }
     } else if (type === "auction") {
       adExists = await AuctionAd.findById(id);
       if (!adExists) {
-        return res.status(404).json({ success: false, message: "Auction Ad not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Auction Ad not found" });
       }
     } else {
-      return res.status(400).json({ success: false, message: "Invalid ad type. Use 'classified' or 'auction'." });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ad type. Use 'classified' or 'auction'.",
+      });
     }
 
     // Create report
@@ -1131,7 +1187,6 @@ router.post("/report/:id", auth, async (req, res) => {
     });
 
     return res.status(201).json({ success: true, report });
-
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -1210,7 +1265,9 @@ router.post("/auction-ad/:id/update-offer", auth, async (req, res) => {
     // ✅ Create notification for this user
     await Notification.create({
       title: "You have received an offer",
-      text: `Your bid on auction "${auction?.title || "Untitled"}" has been marked as an offer. Please accept or reject the auction bid you have won.`,
+      text: `Your bid on auction "${
+        auction?.title || "Untitled"
+      }" has been marked as an offer. Please accept or reject the auction bid you have won.`,
       userId: topBid.user._id,
       auctionId: id,
     });
@@ -1224,7 +1281,6 @@ router.post("/auction-ad/:id/update-offer", auth, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 /// Update top bid offer_status (Accepted / Rejected)
 router.post("/auction-ad/:id/buy-update-offer", auth, async (req, res) => {
@@ -1256,7 +1312,11 @@ router.post("/auction-ad/:id/buy-update-offer", auth, async (req, res) => {
     if (auction && auction.user) {
       await Notification.create({
         title: `Your offer was ${offer_status}`,
-        text: `The user "${topBid.user?.name}" has ${offer_status.toLowerCase()} your offer on auction "${auction.title}".`,
+        text: `The user "${
+          topBid.user?.name
+        }" has ${offer_status.toLowerCase()} your offer on auction "${
+          auction.title
+        }".`,
         userId: auction.user._id,
         auctionId: id,
       });
@@ -1282,13 +1342,12 @@ router.post("/auction-ad/:id/buy-update-offer", auth, async (req, res) => {
   }
 });
 
-
-
 // GET notifications for logged-in user
 router.get("/notifications", auth, async (req, res) => {
   try {
-    const notifications = await Notification.find({ userId: req.user.id })
-      .sort({ createdAt: -1 });
+    const notifications = await Notification.find({ userId: req.user.id }).sort(
+      { createdAt: -1 }
+    );
 
     res.json(notifications);
   } catch (err) {
@@ -1343,6 +1402,5 @@ router.patch("/notifications/read", auth, async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
-
 
 module.exports = router;
