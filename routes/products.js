@@ -29,6 +29,7 @@ const csv = require("csv-parser");
 const { Readable } = require("stream");
 const OpenAI = require("openai");
 const PaymentCard = require("../models/PaymentCard");
+const stripeService = require("../services/stripeService");
 
 const uploadCSV = multer({ storage: multer.memoryStorage() });
 
@@ -1006,12 +1007,13 @@ router.post("/create-payment-intent", auth, async (req, res) => {
     const userId = req.user._id;
     const { amount, currency } = req.body;
 
-    const paymentCard = await PaymentCard.findOne({ user: userId });
+    // Get or create Stripe customer for the user
+    const stripeCustomerId = await stripeService.getOrCreateCustomer(userId);
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amount * 100, // amount in cents
       currency: currency || "usd",
-      customer: paymentCard.stripe_customer_id,
+      customer: stripeCustomerId,
       automatic_payment_methods: {
         enabled: true,
         allow_redirects: "never",
