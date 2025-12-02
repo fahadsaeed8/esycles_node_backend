@@ -21,13 +21,12 @@ const adDurationSchema = new mongoose.Schema(
 
 const classifiedAdSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     // 1. Ad Duration & Plan
     adDuration: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "adDuration",
-      required: true,
     },
     adPackageType: {
       type: String,
@@ -39,11 +38,9 @@ const classifiedAdSchema = new mongoose.Schema(
     sellerType: {
       type: String, // "Individual" | "Business"
       enum: ["Individual", "Business"],
-      required: true,
     },
     sellerName: {
       type: String,
-      required: true,
     },
     firstName: {
       type: String,
@@ -53,11 +50,9 @@ const classifiedAdSchema = new mongoose.Schema(
     },
     contactNumber: {
       type: String,
-      required: true,
     },
     email: {
       type: String,
-      required: true,
     },
     address: {
       type: String,
@@ -79,7 +74,6 @@ const classifiedAdSchema = new mongoose.Schema(
     },
     location: {
       type: String,
-      required: true,
     },
 
     latitude: {
@@ -116,11 +110,9 @@ const classifiedAdSchema = new mongoose.Schema(
 
     title: {
       type: String,
-      required: true,
     },
     description: {
       type: String,
-      required: true,
     },
     condition: {
       type: String,
@@ -133,7 +125,6 @@ const classifiedAdSchema = new mongoose.Schema(
         "Pre_Owned",
         "As_Is",
       ],
-      required: true,
     },
     brand: {
       type: String,
@@ -187,16 +178,13 @@ const classifiedAdSchema = new mongoose.Schema(
     pricingType: {
       type: String, // "Fixed Price" | "Negotiable"
       enum: ["Fixed_Price", "Negotiable", "Best_Offer", "Free", "Exchange"],
-      required: true,
     },
     price: {
       type: Number,
-      required: true,
     },
     paymentMethod: {
       type: String,
       enum: ["Cash_On_Delivery", "Online", "Escrow_via_esycles"],
-      required: true,
     },
     autoRenew: {
       type: Boolean,
@@ -206,7 +194,6 @@ const classifiedAdSchema = new mongoose.Schema(
     deliveryOption: {
       type: String,
       enum: ["Pickup_Only", "Courier_Delivery", "Local_Delivery", "Online"],
-      required: true,
     },
     deliveryFee: {
       type: String,
@@ -267,13 +254,12 @@ savedClassifiedAdSchema.index({ user: 1, classifiedAd: 1 }, { unique: true });
 
 const auctionAdSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
     // 1. Auction Duration & Type
     auctionDuration: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "adDuration",
-      required: true,
     },
 
     auctionType: {
@@ -284,18 +270,15 @@ const auctionAdSchema = new mongoose.Schema(
         "Bidding_Increase_Percentage",
         "Minimum_Price_Increase",
       ],
-      required: true,
     },
 
     // 2. Seller Information
     sellerType: {
       type: String, // "Individual" | "Business"
       enum: ["Individual", "Business"],
-      required: true,
     },
     sellerName: {
       type: String,
-      required: true,
     },
     firstName: {
       type: String,
@@ -305,11 +288,9 @@ const auctionAdSchema = new mongoose.Schema(
     },
     contactNumber: {
       type: String,
-      required: true,
     },
     email: {
       type: String,
-      required: true,
     },
     address: {
       type: String,
@@ -331,7 +312,6 @@ const auctionAdSchema = new mongoose.Schema(
     },
     location: {
       type: String,
-      required: true,
     },
 
     latitude: {
@@ -369,7 +349,6 @@ const auctionAdSchema = new mongoose.Schema(
     title: {
       type: String,
       maxlength: 80,
-      required: true,
     },
     description: {
       type: String,
@@ -385,7 +364,6 @@ const auctionAdSchema = new mongoose.Schema(
         "Pre_Owned",
         "As_Is",
       ],
-      required: true,
     },
     brand: {
       type: String,
@@ -433,7 +411,6 @@ const auctionAdSchema = new mongoose.Schema(
     // 5. Auction Pricing Rules
     buyNowPrice: {
       type: Number,
-      required: true,
     },
     auctionFee: {
       type: Number, // Auto-calculated based on rules
@@ -447,7 +424,6 @@ const auctionAdSchema = new mongoose.Schema(
     currency: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Currency",
-      required: true,
     },
 
     shippingCost: {
@@ -458,12 +434,10 @@ const auctionAdSchema = new mongoose.Schema(
       type: String,
       enum: ["Free", "Paid_By_Sellet", "Paid_By_Buyer"],
       default: "Free",
-      required: true,
     },
     deliveryOption: {
       type: String,
       enum: ["Pickup_Only", "Courier_Delivery", "Local_Delivery", "Online"],
-      required: true,
     },
 
     // 7. Bidding Controls & Buyer Settings

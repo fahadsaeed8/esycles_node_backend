@@ -1,11 +1,11 @@
-const mongoose = require('mongoose');
-require('dotenv').config();
-const express = require('express');
-const path = require('path');
-const { Currency } = require('./models/Utils.js'); // 👈 Import Currency model
+const mongoose = require("mongoose");
+require("dotenv").config();
+const express = require("express");
+const path = require("path");
+const { Currency } = require("./models/Utils.js"); // 👈 Import Currency model
 
 const app = express();
-app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use("/public", express.static(path.join(__dirname, "public")));
 
 // Currency data
 const currencies = [
@@ -22,7 +22,8 @@ const currencies = [
 ];
 
 // Connect to DB and insert currencies
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/esycles')
+mongoose
+  .connect(process.env.MONGODB_URI || "mongodb://localhost:27017/esycles")
   .then(async () => {
     console.log("✅ DB connected");
 
@@ -31,14 +32,16 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/esycles')
     console.log("🗑️ Old currencies removed");
 
     // Insert new currencies
-    await Currency.insertMany(currencies.map(c => ({
-      name: c.name,
-      code: c.code,
-      symbol: c.symbol,
-      is_active: true
-    })));
+    await Currency.insertMany(
+      currencies.map((c) => ({
+        name: c.name,
+        code: c.code,
+        symbol: c.symbol,
+        is_active: true,
+      }))
+    );
 
     console.log("🚀 Currencies added!");
     process.exit(0);
   })
-  .catch(err => console.error("❌ DB connection error:", err));
+  .catch((err) => console.error("❌ DB connection error:", err));
