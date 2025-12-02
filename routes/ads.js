@@ -18,12 +18,6 @@ const auctionQueue = require("../jobs/auctionQueue");
 
 router.post("/classified-ads", auth, adsUpload, async (req, res) => {
   try {
-    if (!req.body.adLife) {
-      return res.status(400).json({
-        success: false,
-        message: "adLife is required",
-      });
-    }
     // get file paths/urls from multer
     const imagePaths = req.files.map((file) => file.path);
 
@@ -375,12 +369,6 @@ router.get("/featured-classified-ads", auth, (req, res) =>
 // here "images" should match your Postman key
 router.post("/auction-ads", auth, adsUpload, async (req, res) => {
   try {
-    if (!req.body.adLife) {
-      return res.status(400).json({
-        success: false,
-        message: "adLife is required",
-      });
-    }
     const imagePaths = req.files ? req.files.map((file) => file.path) : [];
 
     const auctionAd = new AuctionAd({
