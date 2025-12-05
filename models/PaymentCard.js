@@ -71,7 +71,6 @@ paymentCardSchema.pre("save", function (next) {
 
 // Index for better query performance
 paymentCardSchema.index({ user: 1 });
-paymentCardSchema.index({ stripe_payment_method_id: 1 });
 paymentCardSchema.index({ stripe_customer_id: 1 });
 
 module.exports = mongoose.model("PaymentCard", paymentCardSchema);

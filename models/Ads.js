@@ -12,7 +12,7 @@ const adDurationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["Classified", "Auction"],
+      enum: ["Classified", "Auction", "Map"],
       required: true,
     },
   },
@@ -516,6 +516,244 @@ const savedAuctionAdSchema = new mongoose.Schema(
 
 savedAuctionAdSchema.index({ user: 1, auctionAd: 1 }, { unique: true });
 
+const mapAdSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+    // 1. Ad Duration & Plan
+    adDuration: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "adDuration",
+    },
+    adPackageType: {
+      type: String,
+      enum: ["Standard", "Featured", "Premium"],
+      default: "Standard (no fee)",
+    },
+
+    // 2. Seller Information
+    sellerType: {
+      type: String,
+      enum: ["Individual", "Business"],
+    },
+    sellerName: {
+      type: String,
+    },
+    firstName: {
+      type: String,
+    },
+    lastName: {
+      type: String,
+    },
+    contactNumber: {
+      type: String,
+    },
+    email: {
+      type: String,
+    },
+    address: {
+      type: String,
+    },
+    city: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    zipCode: {
+      type: String,
+    },
+    country: {
+      type: String,
+    },
+    language: {
+      type: String,
+    },
+    location: {
+      type: String,
+    },
+
+    // Location coordinates (required for map ads)
+    latitude: {
+      type: Number,
+      required: true,
+    },
+    longitude: {
+      type: Number,
+      required: true,
+    },
+
+    views: {
+      type: Number,
+      default: 0,
+    },
+    calls: {
+      type: Number,
+      default: 0,
+    },
+    chats: {
+      type: Number,
+      default: 0,
+    },
+
+    // 3. Product / Item Information
+    category: {
+      type: String,
+      enum: [
+        "BICYCLES",
+        "EBIKES",
+        "ESCOOTERS",
+        "EXERCISE BICYCLES",
+        "ESKATEBOARDS",
+        "HOVERBOARDS",
+      ],
+    },
+
+    title: {
+      type: String,
+    },
+    description: {
+      type: String,
+    },
+    condition: {
+      type: String,
+      enum: [
+        "New",
+        "Like_New",
+        "Open_Box",
+        "Acceptable",
+        "Refurbished",
+        "Pre_Owned",
+        "As_Is",
+      ],
+    },
+    brand: {
+      type: String,
+    },
+    yearOfManufacture: {
+      type: String,
+    },
+    specifications: {
+      type: String,
+    },
+    color: {
+      type: String,
+      enum: [
+        "Black",
+        "White",
+        "Red",
+        "Blue",
+        "Green",
+        "Yellow",
+        "Gray",
+        "Silver",
+        "Orange",
+        "Pink",
+        "Purple",
+        "Other",
+      ],
+    },
+
+    startDate: { type: Date },
+    expiryDate: { type: Date },
+    adLife: {
+      type: Number,
+    },
+
+    // 4. Media Uploads
+    images: [
+      {
+        type: String,
+      },
+    ],
+    videoLink: {
+      type: String,
+    },
+    returns: {
+      type: String,
+    },
+    warranty: {
+      type: String,
+    },
+
+    // 5. Pricing & Payment
+    pricingType: {
+      type: String,
+      enum: ["Fixed_Price", "Negotiable", "Best_Offer", "Free", "Exchange"],
+    },
+    price: {
+      type: Number,
+    },
+    paymentMethod: {
+      type: String,
+      enum: ["Cash_On_Delivery", "Online", "Escrow_via_esycles"],
+    },
+    autoRenew: {
+      type: Boolean,
+      default: false,
+    },
+
+    deliveryOption: {
+      type: String,
+      enum: ["Pickup_Only", "Courier_Delivery", "Local_Delivery", "Online"],
+    },
+    deliveryFee: {
+      type: String,
+      enum: ["Free", "Paid_By_Seller", "Paid_By_Buyer"],
+      default: "Free",
+    },
+    is_pause: {
+      type: Boolean,
+      default: false,
+    },
+    is_featured: {
+      type: Boolean,
+      default: false,
+    },
+    is_promoted: {
+      type: Boolean,
+      default: false,
+    },
+
+    // 6. Policy Acknowledgment
+    agreedTerms: {
+      type: Boolean,
+      default: false,
+    },
+    agreedPolicy: {
+      type: Boolean,
+      default: false,
+    },
+    ad_status: {
+      type: String,
+      enum: ["Pending", "Accepted", "Rejected"],
+      default: "Pending",
+    },
+
+    // 7. Submission
+    status: {
+      type: String,
+      enum: ["Draft", "Published"],
+      default: "Draft",
+    },
+  },
+  { timestamps: true }
+);
+
+const savedMapAdSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    mapAd: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MapAd",
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+savedMapAdSchema.index({ user: 1, mapAd: 1 }, { unique: true });
+
 const bidHistorySchema = new mongoose.Schema(
   {
     auctionAd: {
@@ -571,7 +809,7 @@ const adReportSchema = new mongoose.Schema(
 
     adType: {
       type: String,
-      enum: ["Classified", "Auction"],
+      enum: ["Classified", "Auction", "Map"],
       required: true,
     },
 
@@ -583,6 +821,11 @@ const adReportSchema = new mongoose.Schema(
     auctionAd: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "AuctionAd",
+    },
+
+    mapAd: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "MapAd",
     },
 
     reason: {
@@ -639,6 +882,8 @@ module.exports = {
   AuctionAd:
     mongoose.models.AuctionAd || mongoose.model("AuctionAd", auctionAdSchema),
 
+  MapAd: mongoose.models.MapAd || mongoose.model("MapAd", mapAdSchema),
+
   adDuration:
     mongoose.models.adDuration ||
     mongoose.model("adDuration", adDurationSchema),
@@ -650,6 +895,10 @@ module.exports = {
   savedClassifiedAd:
     mongoose.models.savedClassifiedAd ||
     mongoose.model("savedClassifiedAd", savedClassifiedAdSchema),
+
+  savedMapAd:
+    mongoose.models.savedMapAd ||
+    mongoose.model("savedMapAd", savedMapAdSchema),
 
   AdReport:
     mongoose.models.AdReport || mongoose.model("AdReport", adReportSchema),

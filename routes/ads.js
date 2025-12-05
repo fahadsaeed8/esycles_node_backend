@@ -4,9 +4,11 @@ const router = express.Router();
 const {
   ClassifiedAd,
   AuctionAd,
+  MapAd,
   adDuration,
   savedAuctionAd,
   savedClassifiedAd,
+  savedMapAd,
   AdReport,
   BidHistory,
   Notification,
@@ -1030,6 +1032,344 @@ router.get("/promoted-auction-ads", auth, (req, res) =>
   getAuctionAds(req, res, "boostOptions.promoteHomepage")
 );
 
+// ========================= MAP ADS APIS =========================
+
+// POST - Create Map Ad
+router.post("/map-ads", auth, adsUpload, async (req, res) => {
+  try {
+    // Get file paths/urls from multer
+    const imagePaths = req.files ? req.files.map((file) => file.path) : [];
+
+    // Validate required location fields
+    if (!req.body.latitude || !req.body.longitude) {
+      return res.status(400).json({
+        success: false,
+        message: "Latitude and longitude are required for map ads",
+      });
+    }
+
+    // Prepare data
+    let mapAdData = {
+      ...req.body,
+      images: imagePaths,
+      user: req.user._id,
+    };
+
+    // If status = Published
+    if (req.body.status === "Published") {
+      const now = new Date();
+      const adLife = req.body.adLife ? Number(req.body.adLife) : 7;
+
+      mapAdData.adLife = adLife;
+      mapAdData.startDate = now;
+
+      // expiry = startDate + adLife days
+      const expiry = new Date(now);
+      expiry.setDate(expiry.getDate() + adLife);
+
+      mapAdData.expiryDate = expiry;
+    }
+
+    const mapAd = new MapAd(mapAdData);
+    await mapAd.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Map Ad created successfully",
+      data: mapAd,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// PATCH - Update Map Ad
+router.patch("/map-ads/:id", auth, adsUpload, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get file paths/urls from multer if files are uploaded
+    let imagePaths = req.files?.map((file) => file.path) || [];
+
+    // Find the map ad
+    let mapAd = await MapAd.findById(id);
+    if (!mapAd) {
+      return res.status(404).json({
+        success: false,
+        message: "Map Ad not found",
+      });
+    }
+
+    // Update fields dynamically
+    Object.keys(req.body).forEach((key) => {
+      mapAd[key] = req.body[key];
+    });
+
+    // If new images are uploaded, merge them with existing ones
+    if (imagePaths.length > 0) {
+      mapAd.images = [...mapAd.images, ...imagePaths];
+    }
+
+    // If status = Published, recalc adLife + expiryDate
+    if (req.body.status === "Published") {
+      const now = new Date();
+      const adLife = req.body.adLife
+        ? Number(req.body.adLife)
+        : mapAd.adLife || 7;
+
+      mapAd.adLife = adLife;
+      mapAd.startDate = now;
+
+      const expiry = new Date(now);
+      expiry.setDate(expiry.getDate() + adLife);
+
+      mapAd.expiryDate = expiry;
+    }
+
+    await mapAd.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Map Ad updated successfully",
+      data: mapAd,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// PATCH - Update Map Ad Statistics (views/calls)
+router.patch("/update-map-ads/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { statics } = req.body;
+
+    // Find map ad
+    let mapAd = await MapAd.findById(id);
+    if (!mapAd) {
+      return res.status(404).json({
+        success: false,
+        message: "Map Ad not found",
+      });
+    }
+
+    // Increment counters
+    if (statics === "view") {
+      mapAd.views = (mapAd.views || 0) + 1;
+    } else if (statics === "phone") {
+      mapAd.calls = (mapAd.calls || 0) + 1;
+    }
+
+    await mapAd.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Map Ad statistics updated successfully",
+      data: {
+        views: mapAd.views,
+        calls: mapAd.calls,
+      },
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// PATCH - Pause/Approve Map Ad
+router.patch("/pause-approve-map-ad/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ad_status, is_pause } = req.body;
+
+    // Validate: only one field can be updated at a time
+    if (
+      (ad_status && typeof is_pause !== "undefined") ||
+      (!ad_status && typeof is_pause === "undefined")
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide only one field: either ad_status or is_pause",
+      });
+    }
+
+    // Prepare update object
+    const updateData = {};
+    if (ad_status) {
+      if (!["Pending", "Accepted", "Rejected"].includes(ad_status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid ad_status value",
+        });
+      }
+      updateData.ad_status = ad_status;
+    }
+    if (typeof is_pause !== "undefined") {
+      updateData.is_pause = is_pause;
+    }
+
+    const updatedAd = await MapAd.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
+    if (!updatedAd) {
+      return res.status(404).json({
+        success: false,
+        message: "Map Ad not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Map Ad updated successfully",
+      data: updatedAd,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// GET - All Map Ads
+router.get("/map-ads", auth, async (req, res) => {
+  try {
+    const mapAds = await MapAd.find();
+
+    // Get saved map ads by user
+    const savedMapIds = (
+      await savedMapAd.find({ user: req.user._id }).distinct("mapAd")
+    ).map((id) => id.toString());
+
+    const fullUrl = req.protocol + "://" + req.get("host");
+
+    const adsWithFullImages = mapAds.map((ad) => {
+      return {
+        ...ad.toObject(),
+        images: ad.images.map((img) => `${fullUrl}/${img}`),
+        is_saved: savedMapIds.includes(ad._id.toString()),
+        adType: "map",
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      total: adsWithFullImages.length,
+      data: adsWithFullImages,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// GET - Single Map Ad by ID
+router.get("/map-ad/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find map ad by ID
+    const mapAd = await MapAd.findById(id);
+    if (!mapAd) {
+      return res
+        .status(404)
+        .json({ success: false, message: "No map ad found" });
+    }
+
+    // Get saved map ads by user
+    const savedMapIds = (
+      await savedMapAd.find({ user: req.user._id }).distinct("mapAd")
+    ).map((id) => id.toString());
+
+    const fullUrl = req.protocol + "://" + req.get("host");
+
+    // Build response with full image URLs + saved flag
+    const adWithFullImages = {
+      ...mapAd.toObject(),
+      images: mapAd.images.map((img) => `${fullUrl}/${img}`),
+      is_saved: savedMapIds.includes(mapAd._id.toString()),
+      adType: "map",
+    };
+
+    res.status(200).json({
+      success: true,
+      data: adWithFullImages,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// Helper function to calculate distance between two coordinates
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) *
+      Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in km
+  return d;
+}
+
+function deg2rad(deg) {
+  return deg * (Math.PI / 180);
+}
+
+// Helper function for featured/promoted map ads
+async function getMapAds(req, res, boostField) {
+  try {
+    const filters = {
+      status: "Published",
+      ad_status: "Accepted",
+      expiryDate: { $gte: new Date() },
+      [boostField]: true,
+    };
+
+    const mapAds = await MapAd.find(filters);
+
+    const savedMapIds = (
+      await savedMapAd.find({ user: req.user._id }).distinct("mapAd")
+    ).map((id) => id.toString());
+
+    const fullUrl = `${req.protocol}://${req.get("host")}`;
+
+    const adsWithFullImages = mapAds.map((ad) => ({
+      ...ad.toObject(),
+      images: ad.images.map((img) => `${fullUrl}/${img}`),
+      is_saved: savedMapIds.includes(ad._id.toString()),
+      adType: "map",
+    }));
+
+    res.status(200).json({
+      success: true,
+      total: adsWithFullImages.length,
+      data: adsWithFullImages,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+}
+
+// Routes for promoted/featured map ads
+router.get("/promoted-map-ads", auth, (req, res) =>
+  getMapAds(req, res, "is_promoted")
+);
+
+router.get("/featured-map-ads", auth, (req, res) =>
+  getMapAds(req, res, "is_featured")
+);
+
+// ========================= END MAP ADS APIS =========================
+
 // GET all AdDuration by type
 router.get("/all_adDuration", auth, async (req, res) => {
   try {
@@ -1039,15 +1379,16 @@ router.get("/all_adDuration", auth, async (req, res) => {
     if (!type) {
       return res.status(400).json({
         success: false,
-        message: "Type query parameter is required (Classified or Auction)",
+        message:
+          "Type query parameter is required (Classified, Auction, or Map)",
       });
     }
 
     // validate enum
-    if (!["Classified", "Auction"].includes(type)) {
+    if (!["Classified", "Auction", "Map"].includes(type)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid type. Must be 'Classified' or 'Auction'",
+        message: "Invalid type. Must be 'Classified', 'Auction', or 'Map'",
       });
     }
 
@@ -1124,6 +1465,27 @@ router.post("/save-ad/:id", auth, async (req, res) => {
       }
     }
 
+    if (adType === "map") {
+      if (action === "save") {
+        const exists = await savedMapAd.findOne({
+          user: req.user._id,
+          mapAd: id,
+        });
+        if (exists)
+          return res.json({ success: true, message: "Already saved" });
+
+        const saved = new savedMapAd({ user: req.user._id, mapAd: id });
+        await saved.save();
+        return res.json({ success: true, message: "Map ad saved" });
+      } else if (action === "unsave") {
+        await savedMapAd.findOneAndDelete({
+          user: req.user._id,
+          mapAd: id,
+        });
+        return res.json({ success: true, message: "Map ad unsaved" });
+      }
+    }
+
     return res.status(400).json({ success: false, message: "Invalid adType" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1158,19 +1520,32 @@ router.post("/report/:id", auth, async (req, res) => {
           .status(404)
           .json({ success: false, message: "Auction Ad not found" });
       }
+    } else if (type === "map") {
+      adExists = await MapAd.findById(id);
+      if (!adExists) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Map Ad not found" });
+      }
     } else {
       return res.status(400).json({
         success: false,
-        message: "Invalid ad type. Use 'classified' or 'auction'.",
+        message: "Invalid ad type. Use 'classified', 'auction', or 'map'.",
       });
     }
 
     // Create report
     const report = await AdReport.create({
       user: req.user._id,
-      adType: type === "classified" ? "Classified" : "Auction",
+      adType:
+        type === "classified"
+          ? "Classified"
+          : type === "auction"
+          ? "Auction"
+          : "Map",
       classifiedAd: type === "classified" ? id : undefined,
       auctionAd: type === "auction" ? id : undefined,
+      mapAd: type === "map" ? id : undefined,
       reason,
     });
 
