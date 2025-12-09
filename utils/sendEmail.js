@@ -24,7 +24,7 @@ const sendEmail = async (to, subject, text) => {
       subject,
       text,
       html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-               <h2 style="color: #4F46E5;">Esycles</h2>
+               <h2 style="font-family:Arial,sans-serif;">e<span style="color:#f16f21;">s</span>ycle<span style="color:#f16f21;">s</span></h2>
                <p>${text.replace(/\n/g, "<br>")}</p>
                <hr style="border: none; border-top: 1px solid #eaeaea; margin: 20px 0;">
                <p style="color: #666; font-size: 12px;">This is an automated message, please do not reply.</p>
