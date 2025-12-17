@@ -30,7 +30,7 @@ const classifiedAdSchema = new mongoose.Schema(
     },
     adPackageType: {
       type: String,
-      enum: ["Standard", "Featured", "Premium"],
+      enum: ["Standard", "Featured", "Premium", "Pro"],
       default: "Standard (no fee)",
     },
 
@@ -105,6 +105,7 @@ const classifiedAdSchema = new mongoose.Schema(
         "EXERCISE BICYCLES",
         "ESKATEBOARDS",
         "HOVERBOARDS",
+        "Exercise Bicycles",
       ],
     },
 
@@ -733,7 +734,7 @@ const mapAdSchema = new mongoose.Schema(
     // 7. Submission
     status: {
       type: String,
-      enum: ["Draft", "Published"],
+      enum: ["Draft", "Published", "Pending"],
       default: "Draft",
     },
   },
