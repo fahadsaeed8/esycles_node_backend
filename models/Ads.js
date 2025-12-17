@@ -30,7 +30,7 @@ const classifiedAdSchema = new mongoose.Schema(
     },
     adPackageType: {
       type: String,
-      enum: ["Standard", "Featured", "Premium", "Pro"],
+      enum: ["Standard", "Featured", "Premium"],
       default: "Standard (no fee)",
     },
 
@@ -105,7 +105,6 @@ const classifiedAdSchema = new mongoose.Schema(
         "EXERCISE BICYCLES",
         "ESKATEBOARDS",
         "HOVERBOARDS",
-        "Exercise Bicycles",
       ],
     },
 
@@ -528,8 +527,8 @@ const mapAdSchema = new mongoose.Schema(
     },
     adPackageType: {
       type: String,
-      enum: ["Standard", "Featured", "Premium"],
-      default: "Standard (no fee)",
+      enum: ["Standard", "Featured", "Premium", "Pro"],
+      default: "Standard",
     },
 
     // 2. Seller Information
@@ -734,7 +733,7 @@ const mapAdSchema = new mongoose.Schema(
     // 7. Submission
     status: {
       type: String,
-      enum: ["Draft", "Published", "Pending"],
+      enum: ["Draft", "Published"],
       default: "Draft",
     },
   },
