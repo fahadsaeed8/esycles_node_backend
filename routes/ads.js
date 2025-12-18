@@ -17,6 +17,7 @@ const auth = require("../middleware/auth");
 const adsUpload = require("../middleware/adsUpload");
 const { notifyOtherBidders } = require("../utils/notificationHelper");
 const auctionQueue = require("../jobs/auctionQueue");
+const sendEmail = require("../utils/sendEmail");
 
 router.post("/classified-ads", auth, adsUpload, async (req, res) => {
   try {
@@ -1763,6 +1764,29 @@ router.patch("/notifications/read", auth, async (req, res) => {
   } catch (error) {
     console.error("Error updating notifications:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// POST /send-email
+// Body: { email: string, message: string }
+router.post("/send-email", auth, async (req, res) => {
+  try {
+    const { email, message } = req.body;
+    if (!email || !message) {
+      return res.status(400).json({
+        success: false,
+        message: "Both 'email' and 'message' are required",
+      });
+    }
+
+    await sendEmail(email, "Message from Esycles", message);
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Email sent successfully" });
+  } catch (error) {
+    console.error("Send email error:", error.message);
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
