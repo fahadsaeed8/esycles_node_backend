@@ -1730,18 +1730,42 @@ router.patch("/notifications/read", auth, async (req, res) => {
         message: "Provide either notification id or all_read=true",
       });
     }
+    console.log(req.user._id, id);
 
     let result;
     if (all_read === true) {
       // Mark all unread notifications for this user as read
+      const uid = req.user._id;
+      const uidStr = uid.toString();
       result = await Notification.updateMany(
-        { userId: req.user._id, is_read: false },
+        {
+          is_read: false,
+          $or: [
+            { userId: uid },
+            { userId: uidStr },
+            { user: uid },
+            { user: uidStr },
+          ],
+        },
         { $set: { is_read: true } }
       );
     } else if (id) {
       // Mark a single notification as read
+      const notifId = mongoose.Types.ObjectId.isValid(id)
+        ? new mongoose.Types.ObjectId(id)
+        : id;
+      const uid = req.user._id;
+      const uidStr = uid.toString();
       result = await Notification.findOneAndUpdate(
-        { _id: id, userId: req.user._id },
+        {
+          _id: notifId,
+          $or: [
+            { userId: uid },
+            { userId: uidStr },
+            { user: uid },
+            { user: uidStr },
+          ],
+        },
         { $set: { is_read: true } },
         { new: true }
       );
