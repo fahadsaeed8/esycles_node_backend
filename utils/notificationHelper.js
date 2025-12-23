@@ -39,8 +39,12 @@ async function notifyOtherBidders(auctionId, title, text, loginUserId) {
     const notifications = usersToNotify.map((uid) => ({
       title,
       text,
+      // include variants to satisfy different notification schemas that might exist
       userId: uid,
+      user: uid,
+      description: text,
       auctionId,
+      is_read: false,
     }));
 
     if (notifications.length > 0) {
