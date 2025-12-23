@@ -9,14 +9,34 @@ const { AuctionAd, BidHistory, Notification } = require("../models/Ads");
  */
 async function notifyOtherBidders(auctionId, title, text, loginUserId) {
   try {
-    const bidHistories = await BidHistory.find({ auctionAd: auctionId }).select("user");
+    const bidHistories = await BidHistory.find({ auctionAd: auctionId }).select(
+      "user"
+    );
 
-    const uniqueUsers = [...new Set(bidHistories.map(b => b.user.toString()))];
+    const uniqueUsers = [
+      ...new Set(bidHistories.map((b) => b.user.toString())),
+    ];
+    console.log({ uniqueUsers });
 
     // Exclude login user
-    const usersToNotify = uniqueUsers.filter(uid => uid !== loginUserId.toString());
+    const usersToNotify = uniqueUsers.filter(
+      (uid) => uid !== loginUserId.toString()
+    );
+    console.log({ usersToNotify });
 
-    const notifications = usersToNotify.map(uid => ({
+    // Also notify the seller (ad owner) if they are not the logged-in user
+    const auction = await AuctionAd.findById(auctionId).select("user");
+    if (auction && auction.user) {
+      const sellerId = auction.user.toString();
+      if (
+        sellerId !== loginUserId.toString() &&
+        !usersToNotify.includes(sellerId)
+      ) {
+        usersToNotify.push(sellerId);
+      }
+    }
+
+    const notifications = usersToNotify.map((uid) => ({
       title,
       text,
       userId: uid,
