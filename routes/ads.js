@@ -1707,7 +1707,7 @@ router.post("/auction-ad/:id/buy-update-offer", auth, async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating bid offer_status:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: error.message });
   }
 });
 
