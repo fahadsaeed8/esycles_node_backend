@@ -1,6 +1,5 @@
 // utils/notificationHelper.js
 const { AuctionAd, BidHistory, Notification } = require("../models/Ads");
-const mongoose = require("mongoose");
 
 /**
  * @param {String} auctionId - AuctionAd ID
@@ -37,23 +36,16 @@ async function notifyOtherBidders(auctionId, title, text, loginUserId) {
       }
     }
 
-    const auctionObjectId = mongoose.Types.ObjectId.isValid(auctionId)
-      ? new mongoose.Types.ObjectId(auctionId)
-      : auctionId;
-
-    const notifications = usersToNotify.map((uid) => {
-      const userObjectId = mongoose.Types.ObjectId.isValid(uid)
-        ? new mongoose.Types.ObjectId(uid)
-        : uid;
-
-      return {
-        title,
-        text,
-        userId: userObjectId,
-        auctionId: auctionObjectId,
-        is_read: false,
-      };
-    });
+    const notifications = usersToNotify.map((uid) => ({
+      title,
+      text,
+      // include variants to satisfy different notification schemas that might exist
+      userId: uid,
+      user: uid,
+      description: text,
+      auctionId: auctionId.toString(),
+      is_read: false,
+    }));
 
     if (notifications.length > 0) {
       await Notification.insertMany(notifications);
