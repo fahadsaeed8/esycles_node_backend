@@ -1714,11 +1714,18 @@ router.post("/auction-ad/:id/buy-update-offer", auth, async (req, res) => {
 // GET notifications for logged-in user
 router.get("/notifications", auth, async (req, res) => {
   try {
-    const notifications = await Notification.find({ userId: req.user.id }).sort(
-      { createdAt: -1 }
-    );
+    // Populate auctionId with auction title if you want more info; for now just include auctionId as is.
+    const notifications = await Notification.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .select(
+        "title text is_read createdAt auctionId user createdAt description _id"
+      ); // explicitly select auctionId
 
-    res.json(notifications);
+    res.json({
+      success: true,
+      count: notifications.length,
+      notifications,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
