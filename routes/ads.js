@@ -1718,7 +1718,7 @@ router.get("/notifications", auth, async (req, res) => {
     const notifications = await Notification.find({ userId: req.user.id })
       .sort({ createdAt: -1 })
       .select(
-        "title text is_read createdAt auctionId user createdAt description _id"
+        "title text is_read createdAt auctionId user updatedAt description _id"
       ); // explicitly select auctionId
 
     res.json({
