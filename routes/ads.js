@@ -1714,12 +1714,23 @@ router.post("/auction-ad/:id/buy-update-offer", auth, async (req, res) => {
 // GET notifications for logged-in user
 router.get("/notifications", auth, async (req, res) => {
   try {
-    // Populate auctionId with auction title if you want more info; for now just include auctionId as is.
-    const notifications = await Notification.find({ userId: req.user.id })
+    // Support notifications stored with either `userId` or `user` (ObjectId or string)
+    const uid = req.user._id;
+    const uidStr = uid.toString();
+
+    const notifications = await Notification.find({
+      $or: [
+        { userId: uid },
+        { userId: uidStr },
+        { user: uid },
+        { user: uidStr },
+      ],
+    })
       .sort({ createdAt: -1 })
       .select(
         "title text is_read createdAt auctionId user updatedAt description _id"
-      ); // explicitly select auctionId
+      )
+      .populate({ path: "auctionId", select: "title" }); // include auction title if present
 
     res.json({
       success: true,
