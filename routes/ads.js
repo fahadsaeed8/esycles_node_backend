@@ -1633,10 +1633,12 @@ router.post("/auction-ad/:id/update-offer", auth, async (req, res) => {
         auction?.title || "Untitled"
       }" has been marked as an offer. Please accept or reject the auction bid you have won.`,
       userId: topBid.user._id,
+      user: topBid.user._id,
       auctionId: id,
       description: `Your bid on auction "${
         auction?.title || "Untitled"
       }" has been marked as an offer. Please accept or reject the auction bid you have won.`,
+      is_read: false,
     });
 
     res.status(200).json({
