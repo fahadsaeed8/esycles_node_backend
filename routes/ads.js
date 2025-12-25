@@ -1719,18 +1719,8 @@ router.get("/notifications", auth, async (req, res) => {
     const uidStr = uid.toString();
 
     const notifications = await Notification.find({
-      $or: [
-        { userId: uid },
-        { userId: uidStr },
-        { user: uid },
-        { user: uidStr },
-      ],
-    })
-      .sort({ createdAt: -1 })
-      .select(
-        "title text is_read createdAt auctionId user updatedAt description _id"
-      )
-      .populate({ path: "auctionId", select: "title" }); // include auction title if present
+      userId: req.user._id,
+    }).sort({ createdAt: -1 });
 
     res.json({
       success: true,
