@@ -45,7 +45,6 @@ async function notifyOtherBidders(auctionId, title, text, loginUserId) {
 
       return {
         title,
-        text,
         userId: userObjectId,
         auctionId: auctionObjectId,
         is_read: false,

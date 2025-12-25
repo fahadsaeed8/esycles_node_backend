@@ -874,7 +874,7 @@ const notificationSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    text: {
+    description: {
       type: String,
       required: true,
     },
