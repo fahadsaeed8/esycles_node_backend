@@ -1629,9 +1629,7 @@ router.post("/auction-ad/:id/update-offer", auth, async (req, res) => {
     // ✅ Create notification for this user
     await Notification.create({
       title: "You have received an offer",
-      text: `Your bid on auction "${
-        auction?.title || "Untitled"
-      }" has been marked as an offer. Please accept or reject the auction bid you have won.`,
+
       userId: topBid.user._id,
       user: topBid.user._id,
       auctionId: id,

@@ -13,14 +13,16 @@ const worker = new Worker(
       if (!auction) return;
 
       // Get all users who placed a bid
-      const bids = await BidHistory.find({ auctionAd: auctionId }).populate("user");
+      const bids = await BidHistory.find({ auctionAd: auctionId }).populate(
+        "user"
+      );
 
       for (const bid of bids) {
         await Notification.create({
-          user: bid.user._id,
+          userId: bid.user._id,
           auctionId: auction._id,
           title: "Auction Expired",
-          text: `The auction "${auction.title}" has expired. Thank you for your participation.`,
+          description: `The auction "${auction.title}" has expired. Thank you for your participation.`,
           is_read: false,
         });
       }
