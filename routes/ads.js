@@ -1730,7 +1730,7 @@ router.get("/notifications", auth, async (req, res) => {
     res.json({
       success: true,
       count: notifications.length,
-      notifications,
+      data: notifications,
     });
   } catch (err) {
     console.error(err);
