@@ -1681,7 +1681,7 @@ router.post("/auction-ad/:id/buy-update-offer", auth, async (req, res) => {
     if (auction && auction.user) {
       await Notification.create({
         title: `Your offer was ${offer_status}`,
-        text: `The user "${
+        description: `The user "${
           topBid.user?.name
         }" has ${offer_status.toLowerCase()} your offer on auction "${
           auction.title
