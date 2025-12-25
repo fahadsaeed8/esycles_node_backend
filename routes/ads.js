@@ -1719,7 +1719,12 @@ router.get("/notifications", auth, async (req, res) => {
     const uidStr = uid.toString();
 
     const notifications = await Notification.find({
-      userId: req.user._id,
+      $or: [
+        { userId: uid },
+        { userId: uidStr },
+        { user: uid },
+        { user: uidStr },
+      ],
     }).sort({ createdAt: -1 });
 
     res.json({
