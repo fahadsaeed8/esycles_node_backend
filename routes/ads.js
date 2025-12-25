@@ -288,8 +288,13 @@ router.get("/classified-ad/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // find classified ad by ID
-    const classifiedAd = await ClassifiedAd.findById(id);
+    // find classified ad by ID and populate user + adDuration
+    const classifiedAd = await ClassifiedAd.findById(id)
+      .populate({
+        path: "user",
+        select: "first_name last_name email mobile_number role company_info",
+      })
+      .populate("adDuration");
     if (!classifiedAd) {
       return res
         .status(404)
@@ -305,11 +310,27 @@ router.get("/classified-ad/:id", auth, async (req, res) => {
 
     const fullUrl = req.protocol + "://" + req.get("host");
 
-    // build response with full image URLs + saved flag
+    // Helper to format user object
+    const formatUser = (user) => {
+      if (!user) return null;
+      return {
+        _id: user._id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        mobile_number: user.mobile_number,
+        role: user.role,
+        ...(user.role === "vendor" && { company_info: user.company_info }),
+      };
+    };
+
+    // build response with full image URLs + saved flag and populated relations
     const adWithFullImages = {
       ...classifiedAd.toObject(),
       images: classifiedAd.images.map((img) => `${fullUrl}/${img}`),
       is_saved: savedClassifiedIds.includes(classifiedAd._id.toString()),
+      user: formatUser(classifiedAd.user),
+      adDuration: classifiedAd.adDuration || null,
     };
 
     res.status(200).json({
@@ -587,7 +608,9 @@ router.get("/auction-ad/:id", auth, async (req, res) => {
         path: "currentHighestBidder",
         select: "first_name last_name email mobile_number role company_info",
       })
-      .populate("user", "first_name last_name email mobile_number role");
+      .populate("user", "first_name last_name email mobile_number role")
+      .populate("auctionDuration")
+      .populate("currency");
 
     if (!auctionAd) {
       return res
@@ -645,7 +668,7 @@ router.get("/auction-ad/:id", auth, async (req, res) => {
     );
     const userRank = userBid ? userBid.rank : null;
 
-    // build response
+    // build response with all model info + populated refs
     const responseData = {
       ...auctionAd.toObject(),
       images: auctionAd.images.map((img) => `${fullUrl}/${img}`),
@@ -654,6 +677,8 @@ router.get("/auction-ad/:id", auth, async (req, res) => {
       currentHighestBidder: formatUser(auctionAd.currentHighestBidder),
       user_rank: userRank,
       user: formatUser(auctionAd.user),
+      auctionDuration: auctionAd.auctionDuration || null,
+      currency: auctionAd.currency || null,
     };
 
     res.status(200).json({
@@ -1273,8 +1298,14 @@ router.get("/map-ad/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Find map ad by ID
-    const mapAd = await MapAd.findById(id);
+    // Find map ad by ID and populate relations
+    const mapAd = await MapAd.findById(id)
+      .populate({
+        path: "user",
+        select: "first_name last_name email mobile_number role company_info",
+      })
+      .populate("adDuration");
+
     if (!mapAd) {
       return res
         .status(404)
@@ -1288,12 +1319,28 @@ router.get("/map-ad/:id", auth, async (req, res) => {
 
     const fullUrl = req.protocol + "://" + req.get("host");
 
-    // Build response with full image URLs + saved flag
+    // Helper to format user object
+    const formatUser = (user) => {
+      if (!user) return null;
+      return {
+        _id: user._id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        mobile_number: user.mobile_number,
+        role: user.role,
+        ...(user.role === "vendor" && { company_info: user.company_info }),
+      };
+    };
+
+    // Build response with full image URLs + saved flag and populated relations
     const adWithFullImages = {
       ...mapAd.toObject(),
       images: mapAd.images.map((img) => `${fullUrl}/${img}`),
       is_saved: savedMapIds.includes(mapAd._id.toString()),
       adType: "map",
+      user: formatUser(mapAd.user),
+      adDuration: mapAd.adDuration || null,
     };
 
     res.status(200).json({
