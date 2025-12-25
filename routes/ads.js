@@ -300,6 +300,13 @@ router.get("/classified-ad/:id", auth, async (req, res) => {
         .status(404)
         .json({ success: false, message: "No classified ad found" });
     }
+    // Exclude expired ads
+    if (
+      classifiedAd.expiryDate &&
+      new Date(classifiedAd.expiryDate) < new Date()
+    ) {
+      return res.status(404).json({ success: false, message: "Ad expired" });
+    }
 
     // get saved classified ads by user
     const savedClassifiedIds = (
@@ -617,6 +624,10 @@ router.get("/auction-ad/:id", auth, async (req, res) => {
         .status(404)
         .json({ success: false, message: "No auction ad found" });
     }
+    // Exclude expired auctions
+    if (auctionAd.expiryDate && new Date(auctionAd.expiryDate) < new Date()) {
+      return res.status(404).json({ success: false, message: "Ad expired" });
+    }
 
     // get saved auction ads by user
     const savedAuctionIds = (
@@ -680,6 +691,33 @@ router.get("/auction-ad/:id", auth, async (req, res) => {
       auctionDuration: auctionAd.auctionDuration || null,
       currency: auctionAd.currency || null,
     };
+
+    // Determine if a winner has been decided (accepted offer) and include winner info
+    let winnerDecided = auctionAd.ad_status === "Accepted";
+    let winner = null;
+    const acceptedBid = await BidHistory.findOne({
+      auctionAd: id,
+      offer_status: "Accepted",
+    })
+      .populate("user", "first_name last_name email mobile_number")
+      .lean();
+
+    if (acceptedBid) {
+      winnerDecided = true;
+      winner = {
+        bidId: acceptedBid._id,
+        amount: acceptedBid.currentPlacedAmount,
+        user: acceptedBid.user,
+      };
+    } else if (auctionAd.currentHighestBidder) {
+      winner = {
+        user: formatUser(auctionAd.currentHighestBidder),
+        amount: auctionAd.currentHighestAmount,
+      };
+    }
+
+    responseData.winner_decided = winnerDecided;
+    responseData.winner = winner;
 
     res.status(200).json({
       success: true,
@@ -885,6 +923,24 @@ router.post("/auction-ad/:id/bid", auth, async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Auction Ad not found",
+      });
+    }
+
+    // If auction already accepted or an accepted bid exists, prevent new bids
+    if (auction.ad_status === "Accepted") {
+      return res.status(400).json({
+        success: false,
+        message: "Winner already decided for this auction",
+      });
+    }
+    const existingAcceptedBid = await BidHistory.findOne({
+      auctionAd: id,
+      offer_status: "Accepted",
+    }).lean();
+    if (existingAcceptedBid) {
+      return res.status(400).json({
+        success: false,
+        message: "Winner already decided for this auction",
       });
     }
 
@@ -1265,7 +1321,12 @@ router.patch("/pause-approve-map-ad/:id", auth, async (req, res) => {
 // GET - All Map Ads
 router.get("/map-ads", auth, async (req, res) => {
   try {
-    const mapAds = await MapAd.find();
+    const filters = {
+      status: "Published",
+      is_pause: false,
+      expiryDate: { $gte: new Date() },
+    };
+    const mapAds = await MapAd.find(filters);
 
     // Get saved map ads by user
     const savedMapIds = (
@@ -1310,6 +1371,10 @@ router.get("/map-ad/:id", auth, async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "No map ad found" });
+    }
+    // Exclude expired ads
+    if (mapAd.expiryDate && new Date(mapAd.expiryDate) < new Date()) {
+      return res.status(404).json({ success: false, message: "Ad expired" });
     }
 
     // Get saved map ads by user
