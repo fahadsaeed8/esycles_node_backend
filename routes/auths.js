@@ -319,6 +319,8 @@ router.post(
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
+    console.log(req.body);
+
     const { email, password } = req.body;
 
     try {
