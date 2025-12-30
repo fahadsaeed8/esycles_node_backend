@@ -25,18 +25,36 @@ class PaymentCardService {
         );
       }
 
-      // Save payment card to database
-      const paymentCard = new PaymentCard({
+      // Save payment method to database (support both card and us_bank_account)
+      const paymentCardData = {
         user: userId,
         stripe_payment_method_id: stripePaymentMethod.id,
         stripe_customer_id: stripeCustomerId,
-        card_brand: stripePaymentMethod.card.brand,
-        card_last4: stripePaymentMethod.card.last4,
-        card_exp_month: stripePaymentMethod.card.exp_month,
-        card_exp_year: stripePaymentMethod.card.exp_year,
-        card_fingerprint: stripePaymentMethod.card.fingerprint,
         is_default: isDefault,
-      });
+      };
+
+      if (stripePaymentMethod.type === "card") {
+        paymentCardData.type = "card";
+        paymentCardData.card_brand = stripePaymentMethod.card?.brand;
+        paymentCardData.card_last4 = stripePaymentMethod.card?.last4;
+        paymentCardData.card_exp_month = stripePaymentMethod.card?.exp_month;
+        paymentCardData.card_exp_year = stripePaymentMethod.card?.exp_year;
+        paymentCardData.card_fingerprint =
+          stripePaymentMethod.card?.fingerprint;
+      } else if (stripePaymentMethod.type === "us_bank_account") {
+        paymentCardData.type = "bank_account";
+        paymentCardData.bank_name =
+          stripePaymentMethod.us_bank_account?.bank_name;
+        paymentCardData.bank_last4 = stripePaymentMethod.us_bank_account?.last4;
+        paymentCardData.bank_account_holder_type =
+          stripePaymentMethod.us_bank_account?.account_holder_type;
+        paymentCardData.bank_account_holder_name =
+          stripePaymentMethod.billing_details?.name ||
+          stripePaymentMethod.us_bank_account?.account_holder_name;
+        // bank_verified will be updated via webhook when verification completes
+      }
+
+      const paymentCard = new PaymentCard(paymentCardData);
 
       const savedCard = await paymentCard.save();
       return await PaymentCard.findById(savedCard._id).populate(

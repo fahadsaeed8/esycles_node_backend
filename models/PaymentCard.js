@@ -15,9 +15,16 @@ const paymentCardSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // Payment method type: 'card' or 'bank_account'
+  type: {
+    type: String,
+    enum: ["card", "bank_account"],
+    required: true,
+    default: "card",
+  },
+  // Card-specific fields (optional for bank accounts)
   card_brand: {
     type: String,
-    required: true,
     enum: [
       "visa",
       "mastercard",
@@ -31,23 +38,37 @@ const paymentCardSchema = new mongoose.Schema({
   },
   card_last4: {
     type: String,
-    required: true,
     length: 4,
   },
   card_exp_month: {
     type: Number,
-    required: true,
     min: 1,
     max: 12,
   },
   card_exp_year: {
     type: Number,
-    required: true,
     min: new Date().getFullYear(),
   },
   card_fingerprint: {
     type: String,
-    required: false,
+  },
+  // Bank-account specific fields
+  bank_name: {
+    type: String,
+  },
+  bank_last4: {
+    type: String,
+    length: 4,
+  },
+  bank_account_holder_type: {
+    type: String,
+  },
+  bank_account_holder_name: {
+    type: String,
+  },
+  bank_verified: {
+    type: Boolean,
+    default: false,
   },
   is_default: {
     type: Boolean,

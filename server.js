@@ -7,6 +7,9 @@ const utilsRoutes = require("./routes/utils");
 const productRoutes = require("./routes/products");
 const adsRoutes = require("./routes/ads");
 const paymentCardRoutes = require("./routes/paymentCards");
+const stripeRoutes = require("./routes/stripe");
+const stripeController = require("./controllers/stripeController");
+
 const path = require("path");
 
 const PORT = 5000;
@@ -46,11 +49,19 @@ app.use("/api", utilsRoutes);
 app.use("/api", productRoutes);
 app.use("/api", adsRoutes);
 app.use("/api", paymentCardRoutes);
+app.use("/api", stripeRoutes);
 
 // ✅ Serve index.html at "/"
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+
+// Stripe webhook endpoint (use raw body for signature verification)
+app.post(
+  "/webhooks/stripe",
+  express.raw({ type: "application/json" }),
+  (req, res) => stripeController.webhook(req, res)
+);
 
 // Start server
 app.listen(PORT, () => {
