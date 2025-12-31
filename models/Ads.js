@@ -543,7 +543,7 @@ const mapAdSchema = new mongoose.Schema(
     },
     adPackageType: {
       type: String,
-      enum: ["Standard", "Featured", "Premium", "Pro"],
+      enum: ["Standard", "Featured", "Premium", "Pro", "Starter"],
       default: "Standard",
     },
 
