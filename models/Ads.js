@@ -192,7 +192,7 @@ const classifiedAdSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["Cash_On_Delivery", "Online", "Escrow_via_esycles"],
+      enum: ["Cash_On_Delivery", "Online", "Escrow_via_esycles", "ACH"],
     },
     autoRenew: {
       type: Boolean,
@@ -710,7 +710,7 @@ const mapAdSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["Cash_On_Delivery", "Online", "Escrow_via_esycles"],
+      enum: ["Cash_On_Delivery", "Online", "Escrow_via_esycles", "ACH"],
     },
     autoRenew: {
       type: Boolean,
