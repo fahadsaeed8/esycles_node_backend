@@ -131,6 +131,32 @@ class StripeService {
     }
   }
 
+  // Create a PaymentIntent intended for digital wallets (Apple Pay, Google Pay).
+  // The frontend will use the returned client_secret with Stripe.js Payment Request / PaymentElement.
+  async createWalletPaymentIntent({
+    customerId,
+    amount,
+    currency = "usd",
+    metadata = {},
+  }) {
+    try {
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount,
+        currency,
+        customer: customerId,
+        payment_method_types: ["card"],
+        automatic_payment_methods: { enabled: true },
+        metadata,
+      });
+
+      return paymentIntent;
+    } catch (error) {
+      throw new Error(
+        `Failed to create wallet PaymentIntent: ${error.message}`
+      );
+    }
+  }
+
   // Verify micro-deposits for a given PaymentMethod (amounts in cents)
   async verifyMicrodeposits(paymentMethodId, amounts) {
     try {

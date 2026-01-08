@@ -189,6 +189,29 @@ class StripeController {
     }
   }
 
+  // Create a PaymentIntent for digital wallets (Apple Pay / Google Pay)
+  async createWalletPaymentIntent(req, res) {
+    try {
+      const userId = req.user._id;
+      const { amount, currency = "usd", metadata = {} } = req.body;
+      if (!amount) {
+        return res.status(400).json({ error: "amount is required" });
+      }
+
+      const customerId = await stripeService.getOrCreateCustomer(userId);
+      const pi = await stripeService.createWalletPaymentIntent({
+        customerId,
+        amount,
+        currency,
+        metadata,
+      });
+
+      res.json({ clientSecret: pi.client_secret, paymentIntent: pi });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
   // Stripe webhook handler (expects raw body)
   async webhook(req, res) {
     const sig = req.headers["stripe-signature"];

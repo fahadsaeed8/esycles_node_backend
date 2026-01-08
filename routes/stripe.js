@@ -33,4 +33,9 @@ router.post("/stripe/attach-financial-account", auth, (req, res) =>
   stripeController.attachFinancialAccount(req, res)
 );
 
+// Create a PaymentIntent for digital wallets (Apple/Google Pay)
+router.post("/stripe/create-wallet-payment-intent", auth, (req, res) =>
+  stripeController.createWalletPaymentIntent(req, res)
+);
+
 module.exports = router;
