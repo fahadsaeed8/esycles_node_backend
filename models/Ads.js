@@ -198,6 +198,7 @@ const classifiedAdSchema = new mongoose.Schema(
         "Escrow_via_esycles",
         "ACH",
         "CC_Online",
+        "Wallet_Balance",
       ],
     },
     autoRenew: {
@@ -722,6 +723,7 @@ const mapAdSchema = new mongoose.Schema(
         "Escrow_via_esycles",
         "ACH",
         "CC_Online",
+        "Wallet_Balance",
       ],
     },
     autoRenew: {
