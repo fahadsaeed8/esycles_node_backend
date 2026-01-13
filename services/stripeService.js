@@ -144,7 +144,6 @@ class StripeService {
         amount,
         currency,
         customer: customerId,
-        payment_method_types: ["card"],
         automatic_payment_methods: { enabled: true },
         metadata,
       });
