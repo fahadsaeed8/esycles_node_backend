@@ -15,6 +15,8 @@ const path = require("path");
 const PORT = 5000;
 dotenv.config();
 const allowedOrigins = [
+  "https://esycles.com/",
+  "https://esycles.com",
   "http://localhost:3000",
   "http://localhost:3001",
   "https://bdbb668c9ac4.ngrok-free.app",
@@ -23,7 +25,6 @@ const allowedOrigins = [
   "https://admin.esycles.com",
   "https://vendor.esycles.com",
   "https://customer.esycles.com",
-  "https://esycles.com/",
 ];
 
 const app = express();
