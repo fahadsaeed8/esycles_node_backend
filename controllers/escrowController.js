@@ -1,0 +1,122 @@
+const stripeService = require("../services/stripeService");
+const Escrow = require("../models/Escrow");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+class EscrowController {
+  // Create escrow (authorize funds)
+  async create(req, res) {
+    try {
+      const userId = req.user._id;
+      const {
+        orderId,
+        amount,
+        currency = "usd",
+        sellerStripeAccountId,
+        metadata = {},
+        applicationFeeAmount,
+      } = req.body;
+
+      if (!amount) {
+        return res.status(400).json({ error: "amount is required" });
+      }
+
+      const customerId = await stripeService.getOrCreateCustomer(userId);
+      const pi = await stripeService.createEscrowPaymentIntent({
+        customerId,
+        amount,
+        currency,
+        metadata: { ...metadata, orderId },
+        sellerAccountId: sellerStripeAccountId,
+        applicationFeeAmount,
+      });
+
+      // Persist Escrow record
+      const escrow = new Escrow({
+        order_id: orderId,
+        stripe_payment_intent_id: pi.id,
+        seller_stripe_account_id: sellerStripeAccountId,
+        amount,
+        currency,
+        status: "held",
+        metadata,
+      });
+      await escrow.save();
+
+      res.json({ clientSecret: pi.client_secret, escrow });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Release escrow (capture)
+  async release(req, res) {
+    try {
+      const { escrowId, amountToCapture } = req.body;
+      if (!escrowId)
+        return res.status(400).json({ error: "escrowId is required" });
+
+      const escrow = await Escrow.findById(escrowId);
+      if (!escrow) return res.status(404).json({ error: "Escrow not found" });
+      if (escrow.status !== "held")
+        return res.status(400).json({ error: "Escrow is not in held state" });
+
+      const pi = await stripeService.capturePaymentIntent(
+        escrow.stripe_payment_intent_id,
+        amountToCapture
+      );
+
+      const charge = pi.charges?.data?.[0];
+      if (charge) {
+        escrow.stripe_charge_id = charge.id;
+      }
+      escrow.status = "released";
+      escrow.released_at = new Date();
+      await escrow.save();
+
+      res.json({ success: true, paymentIntent: pi, escrow });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Refund escrow
+  async refund(req, res) {
+    try {
+      const { escrowId, amount } = req.body;
+      if (!escrowId)
+        return res.status(400).json({ error: "escrowId is required" });
+
+      const escrow = await Escrow.findById(escrowId);
+      if (!escrow) return res.status(404).json({ error: "Escrow not found" });
+      if (!escrow.stripe_charge_id)
+        return res
+          .status(400)
+          .json({ error: "No charge associated with escrow" });
+
+      const refund = await stripeService.refundCharge(
+        escrow.stripe_charge_id,
+        amount
+      );
+      escrow.status = "refunded";
+      escrow.refunded_at = new Date();
+      await escrow.save();
+
+      res.json({ success: true, refund, escrow });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async get(req, res) {
+    try {
+      const { id } = req.params;
+      const escrow = await Escrow.findById(id);
+      if (!escrow) return res.status(404).json({ error: "Escrow not found" });
+      res.json({ escrow });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+}
+
+module.exports = new EscrowController();

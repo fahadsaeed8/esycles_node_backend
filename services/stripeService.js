@@ -252,6 +252,99 @@ class StripeService {
       throw new Error(`Failed to set default payment method: ${error.message}`);
     }
   }
+
+  /**
+   * Create a PaymentIntent for escrow (authorization hold). Use capture_method: "manual".
+   * Optionally provide seller's connected account ID to include transfer_data so capture will
+   * route funds to the connected account when captured.
+   */
+  async createEscrowPaymentIntent({
+    customerId,
+    amount,
+    currency = "usd",
+    metadata = {},
+    sellerAccountId = null,
+    applicationFeeAmount = null,
+  }) {
+    try {
+      const payload = {
+        amount,
+        currency,
+        customer: customerId,
+        capture_method: "manual",
+        metadata,
+      };
+
+      if (sellerAccountId) {
+        payload.transfer_data = { destination: sellerAccountId };
+      }
+
+      if (applicationFeeAmount) {
+        payload.application_fee_amount = applicationFeeAmount;
+      }
+
+      const paymentIntent = await stripe.paymentIntents.create(payload);
+      return paymentIntent;
+    } catch (error) {
+      throw new Error(
+        `Failed to create escrow PaymentIntent: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Capture a previously authorized PaymentIntent (release funds).
+   */
+  async capturePaymentIntent(paymentIntentId, amountToCapture = null) {
+    try {
+      const opts = {};
+      if (typeof amountToCapture === "number") {
+        opts.amount_to_capture = amountToCapture;
+      }
+      const paymentIntent = await stripe.paymentIntents.capture(
+        paymentIntentId,
+        opts
+      );
+      return paymentIntent;
+    } catch (error) {
+      throw new Error(`Failed to capture PaymentIntent: ${error.message}`);
+    }
+  }
+
+  /**
+   * Refund a charge (full or partial)
+   */
+  async refundCharge(chargeId, amount = null) {
+    try {
+      const payload = { charge: chargeId };
+      if (typeof amount === "number") payload.amount = amount;
+      const refund = await stripe.refunds.create(payload);
+      return refund;
+    } catch (error) {
+      throw new Error(`Failed to refund charge: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a transfer to a connected account (if doing platform->connected transfers)
+   */
+  async createTransferToConnectedAccount({
+    amount,
+    destination,
+    sourceTransaction,
+  }) {
+    try {
+      const payload = {
+        amount,
+        destination,
+      };
+      if (sourceTransaction) payload.source_transaction = sourceTransaction;
+      const transfer = await stripe.transfers.create(payload);
+      return transfer;
+    } catch (error) {
+      throw new Error(`Failed to create transfer: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new StripeService();

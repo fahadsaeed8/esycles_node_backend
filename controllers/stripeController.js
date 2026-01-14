@@ -1,6 +1,7 @@
 const stripeService = require("../services/stripeService");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const PaymentCard = require("../models/PaymentCard");
+const Escrow = require("../models/Escrow");
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -251,15 +252,44 @@ class StripeController {
         }
       } else if (type.startsWith("payment_intent.")) {
         const pi = object;
-        // Example: payment_intent.succeeded
+        // Handle payment_intent.succeeded: update Escrow if present
         if (type === "payment_intent.succeeded") {
-          // find related payment method and mark any local order/record as paid as needed
-          // This is domain-specific; emit logs for now
-          console.log("ACH payment succeeded:", pi.id);
+          const charge = pi.charges?.data?.[0];
+          const chargeId = charge?.id || null;
+          try {
+            const update = {};
+            if (chargeId) {
+              update.stripe_charge_id = chargeId;
+              update.released_at = new Date();
+              update.status = "released";
+            } else {
+              update.status = "released";
+            }
+            await Escrow.findOneAndUpdate(
+              { stripe_payment_intent_id: pi.id },
+              update
+            );
+          } catch (e) {
+            console.warn("Failed to update Escrow for pi:", pi.id, e.message);
+          }
+
+          console.log("PaymentIntent succeeded:", pi.id);
         } else if (type === "payment_intent.processing") {
-          console.log("ACH payment processing:", pi.id);
+          console.log("PaymentIntent processing:", pi.id);
         } else if (type === "payment_intent.payment_failed") {
-          console.log("ACH payment failed:", pi.id);
+          console.log("PaymentIntent payment failed:", pi.id);
+          try {
+            await Escrow.findOneAndUpdate(
+              { stripe_payment_intent_id: pi.id },
+              { status: "failed" }
+            );
+          } catch (e) {
+            console.warn(
+              "Failed to mark Escrow failed for pi:",
+              pi.id,
+              e.message
+            );
+          }
         }
       } else if (
         type === "payment_method.automatically_updated" ||
