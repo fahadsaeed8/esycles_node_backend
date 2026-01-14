@@ -23,7 +23,7 @@ const allowedOrigins = [
   "https://admin.esycles.com",
   "https://vendor.esycles.com",
   "https://customer.esycles.com",
-  "https://esycles.com",
+  "https://esycles.com/",
 ];
 
 const app = express();
