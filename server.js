@@ -8,6 +8,7 @@ const productRoutes = require("./routes/products");
 const adsRoutes = require("./routes/ads");
 const paymentCardRoutes = require("./routes/paymentCards");
 const stripeRoutes = require("./routes/stripe");
+const escrowRoutes = require("./routes/escrow");
 const stripeController = require("./controllers/stripeController");
 
 const path = require("path");
@@ -52,7 +53,7 @@ app.use("/api", productRoutes);
 app.use("/api", adsRoutes);
 app.use("/api", paymentCardRoutes);
 app.use("/api", stripeRoutes);
-
+app.use("/api", escrowRoutes);
 // ✅ Serve index.html at "/"
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
