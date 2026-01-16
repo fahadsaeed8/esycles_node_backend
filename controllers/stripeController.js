@@ -310,6 +310,34 @@ class StripeController {
             );
           }
         }
+      } else if (type === "charge.refunded") {
+        const ch = object;
+        try {
+          await Escrow.findOneAndUpdate(
+            { stripe_charge_id: ch.id },
+            { status: "refunded", refunded_at: new Date() }
+          );
+        } catch (e) {
+          console.warn(
+            "Failed to mark Escrow refunded for charge:",
+            ch.id,
+            e.message
+          );
+        }
+      } else if (type === "charge.dispute.created") {
+        const dispute = object;
+        try {
+          await Escrow.findOneAndUpdate(
+            { stripe_charge_id: dispute.charge },
+            { status: "dispute", dispute_id: dispute.id }
+          );
+        } catch (e) {
+          console.warn(
+            "Failed to mark Escrow disputed for charge:",
+            dispute.charge,
+            e.message
+          );
+        }
       }
 
       res.json({ received: true });

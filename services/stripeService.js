@@ -345,6 +345,23 @@ class StripeService {
       throw new Error(`Failed to create transfer: ${error.message}`);
     }
   }
+
+  /**
+   * Verify a Connect account is ready to receive transfers.
+   * Returns an object with booleans and the raw account.
+   */
+  async verifyConnectAccount(accountId) {
+    try {
+      const acct = await stripe.accounts.retrieve(accountId);
+      return {
+        charges_enabled: acct.charges_enabled || false,
+        payouts_enabled: acct.payouts_enabled || false,
+        raw: acct,
+      };
+    } catch (error) {
+      throw new Error(`Failed to retrieve Connect account: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new StripeService();

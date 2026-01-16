@@ -69,6 +69,31 @@ class EscrowController {
       if (charge) {
         escrow.stripe_charge_id = charge.id;
       }
+      // Attempt to transfer to seller if seller connected account exists and is ready
+      try {
+        if (escrow.seller_stripe_account_id && charge) {
+          const acctStatus = await stripeService.verifyConnectAccount(
+            escrow.seller_stripe_account_id
+          );
+          if (acctStatus.charges_enabled && acctStatus.payouts_enabled) {
+            const transfer =
+              await stripeService.createTransferToConnectedAccount({
+                amount: escrow.amount,
+                destination: escrow.seller_stripe_account_id,
+                sourceTransaction: charge.id,
+              });
+            escrow.release_transfer_id = transfer.id;
+            escrow.transfer_status = "transferred";
+          } else {
+            escrow.transfer_status = "pending_account_not_ready";
+          }
+        }
+      } catch (e) {
+        // log and mark transfer as failed so operator can retry
+        console.warn("Transfer to connected account failed:", e.message);
+        escrow.transfer_status = "transfer_failed";
+      }
+
       escrow.status = "released";
       escrow.released_at = new Date();
       await escrow.save();
