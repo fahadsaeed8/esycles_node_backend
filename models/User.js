@@ -81,6 +81,12 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
+  // Connected Stripe account ID for sellers (acct_...)
+  connect_account_id: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   created_at: {
     type: Date,
     default: Date.now,

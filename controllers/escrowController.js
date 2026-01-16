@@ -1,6 +1,9 @@
 const stripeService = require("../services/stripeService");
 const Escrow = require("../models/Escrow");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const AdsModels = require("../models/Ads");
+
+const User = require("../models/User");
 
 class EscrowController {
   // Create escrow (authorize funds)
@@ -8,10 +11,9 @@ class EscrowController {
     try {
       const userId = req.user._id;
       const {
-        orderId,
+        adId,
         amount,
         currency = "usd",
-        sellerStripeAccountId,
         metadata = {},
         applicationFeeAmount,
       } = req.body;
@@ -20,19 +22,45 @@ class EscrowController {
         return res.status(400).json({ error: "amount is required" });
       }
 
+      // Derive seller connected account from DB using adId (do not trust client)
+      let sellerStripeAccountId = null;
+      let ad = null;
+      if (adId) {
+        ad =
+          (await AdsModels.ClassifiedAd.findById(adId).lean()) ||
+          (await AdsModels.AuctionAd.findById(adId).lean()) ||
+          (await AdsModels.MapAd.findById(adId).lean());
+      }
+      if (ad) {
+        const sellerRef = ad.user || ad.seller || null;
+        if (sellerRef) {
+          const seller = await User.findById(sellerRef).lean();
+          if (seller) {
+            sellerStripeAccountId = seller.connect_account_id || null;
+          }
+        }
+      }
+      // Require seller connected account for escrow payments
+      if (!sellerStripeAccountId) {
+        return res
+          .status(400)
+          .json({ error: "Vendor is not onboarded for escrow payments" });
+      }
+
       const customerId = await stripeService.getOrCreateCustomer(userId);
+      // Create PaymentIntent WITHOUT transfer_data to hold funds on platform (true escrow)
       const pi = await stripeService.createEscrowPaymentIntent({
         customerId,
         amount,
         currency,
-        metadata: { ...metadata, orderId },
-        sellerAccountId: sellerStripeAccountId,
+        metadata: { ...metadata, adId },
+        sellerAccountId: null, // ensure no transfer_data set
         applicationFeeAmount,
       });
 
       // Persist Escrow record
       const escrow = new Escrow({
-        order_id: orderId,
+        order_id: adId,
         stripe_payment_intent_id: pi.id,
         seller_stripe_account_id: sellerStripeAccountId,
         amount,
