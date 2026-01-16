@@ -6,7 +6,7 @@ class SellerController {
   async createOnboard(req, res) {
     try {
       const userId = req.user._id;
-      const { country = "US", type = "express" } = req.body;
+      const { country = "US" } = req.body;
 
       // Allowlist of supported country codes (ISO 3166-1 alpha-2)
       const allowedCountries = new Set([
@@ -76,9 +76,23 @@ class SellerController {
 
       // Create Express Connect account
       const account = await stripe.accounts.create({
-        type,
         country,
         email: user.email,
+        capabilities: {
+          transfers: { requested: true },
+          card_payments: { requested: true },
+        },
+        controller: {
+          fees: {
+            payer: "application",
+          },
+          losses: {
+            payments: "application",
+          },
+          stripe_dashboard: {
+            type: "express",
+          },
+        },
       });
 
       // Persist connect account id on user
