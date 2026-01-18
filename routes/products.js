@@ -181,8 +181,9 @@ router.get(
         .populate("model brand color seller");
 
       if (!products.length) {
-        return res.status(404).json({
+        return res.status(200).json({
           success: false,
+          data: [],
           message: `No products found for type "${type}"`,
         });
       }
